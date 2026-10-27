@@ -6,8 +6,7 @@ import me.sorihiko.dango.DangoClient
 import me.sorihiko.dango.music.CoverCache
 import me.sorihiko.dango.music.MusicPlayer
 import me.sorihiko.dango.music.MusicScreen
-import me.sorihiko.dango.music.NeteaseApi
-import me.sorihiko.dango.music.NeteaseTrack
+import me.sorihiko.dango.music.MusicTrack
 import me.sorihiko.dango.platform.Keys
 import me.sorihiko.dango.ui.LayoutBounds
 import me.sorihiko.dango.ui.ShapeStyle
@@ -34,9 +33,9 @@ internal class TracksPage(private val screen: MusicScreen) {
     var filterFocused = false
     var filterRect = LayoutBounds()
         private set
-    private var filterCacheSrc: List<NeteaseTrack>? = null
+    private var filterCacheSrc: List<MusicTrack>? = null
     private var filterCacheKey = ""
-    private var filterCache: List<Pair<Int, NeteaseTrack>> = emptyList()
+    private var filterCache: List<Pair<Int, MusicTrack>> = emptyList()
 
     // 列表滚动：目标（行）和平滑后的当前位置；一屏放得下几行
     private var scroll = 0
@@ -52,7 +51,7 @@ internal class TracksPage(private val screen: MusicScreen) {
     private var sbGrab = 0f
 
     // "定位"后那一行闪一下
-    private var flashId = 0L
+    private var flashId = ""
     private var flashAt = 0L
 
     // 封面墙：目标下标和平滑后的当前位置
@@ -93,12 +92,12 @@ internal class TracksPage(private val screen: MusicScreen) {
 
     // ---------------------------------------------------------------- 数据
 
-    fun currentTracks(): Pair<String, List<NeteaseTrack>?> = when (ScreenState.page) {
+    fun currentTracks(): Pair<String, List<MusicTrack>?> = when (ScreenState.page) {
         Page.SEARCH -> "\"${ScreenState.lastQuery}\"" to Library.searchResults
         Page.QUEUE -> I18n.text("Now Playing") to MusicPlayer.queue
         Page.PLAYLIST -> {
             val p = ScreenState.opened
-            (p?.name ?: "") to (if (p != null) Library.tracks(p.id) else null)
+            (p?.name ?: "") to (if (p != null) Library.tracks(p) else null)
         }
         else -> "" to null
     }
@@ -106,7 +105,7 @@ internal class TracksPage(private val screen: MusicScreen) {
     private fun norm(s: String) = s.lowercase().replace(" ", "")
 
     /** 当前页显示的歌（筛选后），带原来的序号；结果缓存起来，两千多首也不卡 */
-    private fun shown(all: List<NeteaseTrack>): List<Pair<Int, NeteaseTrack>> {
+    private fun shown(all: List<MusicTrack>): List<Pair<Int, MusicTrack>> {
         val key = norm(filterText)
         if (all === filterCacheSrc && key == filterCacheKey) return filterCache
         filterCacheSrc = all
@@ -127,7 +126,7 @@ internal class TracksPage(private val screen: MusicScreen) {
     }
 
     /** 播放：队列始终是完整歌单（筛选只影响显示），从点的那首开始 */
-    private fun playFrom(all: List<NeteaseTrack>, index: Int) {
+    private fun playFrom(all: List<MusicTrack>, index: Int) {
         if (ScreenState.page == Page.QUEUE) MusicPlayer.playIndex(index) else MusicPlayer.playQueue(all, index)
     }
 
@@ -136,31 +135,31 @@ internal class TracksPage(private val screen: MusicScreen) {
         val all = currentTracks().second ?: return
         val cur = MusicPlayer.current ?: return
         var list = shown(all)
-        var idx = list.indexOfFirst { it.second.id == cur.id }
+        var idx = list.indexOfFirst { it.second.key == cur.key }
         if (idx < 0 && filterText.isNotEmpty()) {
             // 被筛选掉了：清掉筛选再找
             clearFilter()
             list = shown(all)
-            idx = list.indexOfFirst { it.second.id == cur.id }
+            idx = list.indexOfFirst { it.second.key == cur.key }
         }
         if (idx < 0) return
         scroll = (idx - listRows / 2).coerceAtLeast(0)
         cfTarget = idx
         cfPos = idx.toFloat()
-        flashId = cur.id
+        flashId = cur.key
         flashAt = System.currentTimeMillis()
     }
 
     private fun currentInList(): Boolean {
         val cur = MusicPlayer.current ?: return false
-        return currentTracks().second?.any { it.id == cur.id } == true
+        return currentTracks().second?.any { it.key == cur.key } == true
     }
 
     /** 封面墙转到正在播放的那首（没有就第一首） */
     fun focusCurrentInCoverflow() {
         val tracks = currentTracks().second?.let { shown(it) } ?: return
         val cur = MusicPlayer.current
-        val idx = if (cur != null) tracks.indexOfFirst { it.second.id == cur.id } else -1
+        val idx = if (cur != null) tracks.indexOfFirst { it.second.key == cur.key } else -1
         cfTarget = if (idx >= 0) idx else 0
         cfPos = cfTarget.toFloat()
     }
@@ -183,7 +182,7 @@ internal class TracksPage(private val screen: MusicScreen) {
     }
 
     /** 标题区，返回它的高度 */
-    private fun drawHeader(page: LayoutBounds, title: String, tracks: List<NeteaseTrack>?): Float {
+    private fun drawHeader(page: LayoutBounds, title: String, tracks: List<MusicTrack>?): Float {
         val ctx = ui.ctx
         val state = ScreenState
         var x = page.x
@@ -218,7 +217,7 @@ internal class TracksPage(private val screen: MusicScreen) {
         val sub = when {
             state.page == Page.SEARCH && Library.searching -> I18n.text("Searching...")
             state.page == Page.SEARCH && tracks.isNullOrEmpty() ->
-                if (NeteaseApi.lastSearchError.isNotEmpty()) I18n.text("Search failed: ") + NeteaseApi.lastSearchError else I18n.text("No results")
+                if (Library.searchError.isNotEmpty()) I18n.text("Search failed: ") + Library.searchError else I18n.text("No results")
             state.page == Page.QUEUE && tracks.isNullOrEmpty() -> I18n.text("Nothing in the queue yet")
             tracks == null -> I18n.text("Loading...")
             filterText.isNotEmpty() -> I18n.format("%d of %d songs", shown(tracks).size, tracks.size)
@@ -357,7 +356,7 @@ internal class TracksPage(private val screen: MusicScreen) {
     }
 
     /** 列表：序号 / 小封面 / 歌名 / 歌手 / 时长 */
-    private fun drawTrackList(list: LayoutBounds, all: List<NeteaseTrack>, tracks: List<Pair<Int, NeteaseTrack>>) {
+    private fun drawTrackList(list: LayoutBounds, all: List<MusicTrack>, tracks: List<Pair<Int, MusicTrack>>) {
         val ctx = ui.ctx
         // 表头
         ui.text("#", list.x + 12f, list.y, 10f, Theme.TEXT_TERTIARY, Theme.FONT_SEMIBOLD)
@@ -386,12 +385,12 @@ internal class TracksPage(private val screen: MusicScreen) {
             val (i, t) = tracks[vi]
             ui.itemAnim(r) {
                 val row = LayoutBounds(body.x, body.y + (r - frac) * rowH, body.width, rowH - 4f)
-                val isCur = playing != null && playing.id == t.id
+                val isCur = playing != null && playing.key == t.key
                 when {
                     isCur -> ctx.drawGlass(row, Theme.GLASS_SELECTION)
                     ui.hover(row) -> ui.card(row, Theme.CARD_HOVER, 10f)
                 }
-                if (flash > 0f && t.id == flashId) {
+                if (flash > 0f && t.key == flashId) {
                     ctx.drawShape(row, ShapeStyle(Color(0f, 0f, 0f, 0f), 10f, 1.5f, RED.copy(a = flash)))
                 }
                 if (isCur && MusicPlayer.state == MusicPlayer.State.PLAYING) {
@@ -405,7 +404,7 @@ internal class TracksPage(private val screen: MusicScreen) {
                 val durW = 44f
                 val avail = row.right - durW - 12f - tx
                 ui.text(ui.trim(t.name, avail, 13f), tx, row.y + 7f, 13f, if (isCur) RED else Theme.TEXT_PRIMARY)
-                ui.text(ui.trim(t.artists.joinToString(" / "), avail, 11f), tx, row.y + 23f, 11f, Theme.TEXT_SECONDARY)
+                ui.text(ui.trim(I18n.text(t.platform.label) + " · " + t.artists.joinToString(" / "), avail, 11f), tx, row.y + 23f, 11f, Theme.TEXT_SECONDARY)
                 val d = fmtTime(t.durationMs)
                 ui.text(d, row.right - 12f - ui.width(d, 11f), row.y + 15f, 11f, Theme.TEXT_TERTIARY)
                 ui.hits += row.intersect(clipArea) to { playFrom(all, i) }
@@ -420,7 +419,7 @@ internal class TracksPage(private val screen: MusicScreen) {
      * 中间一张大封面，两边的依次变小、变淡、往后叠。
      * 滚轮 / ←→ / 点两侧切换，点中间那张（或回车）播放。
      */
-    private fun drawCoverflow(area: LayoutBounds, all: List<NeteaseTrack>, shownList: List<Pair<Int, NeteaseTrack>>) {
+    private fun drawCoverflow(area: LayoutBounds, all: List<MusicTrack>, shownList: List<Pair<Int, MusicTrack>>) {
         val tracks = shownList.map { it.second }
         if (tracks.isEmpty()) return
         cfTarget = cfTarget.coerceIn(0, tracks.size - 1)
@@ -472,11 +471,11 @@ internal class TracksPage(private val screen: MusicScreen) {
         }
 
         val t = tracks[cfTarget]
-        val isCur = MusicPlayer.current?.id == t.id
+        val isCur = MusicPlayer.current?.key == t.key
         val ty = cy + size / 2f + 14f
         val name = ui.trim(t.name, area.width - 40f, 16f, Theme.FONT_SEMIBOLD)
         ui.text(name, cx - ui.width(name, 16f, Theme.FONT_SEMIBOLD) / 2f, ty, 16f, if (isCur) RED else Theme.TEXT_PRIMARY, Theme.FONT_SEMIBOLD)
-        val artist = ui.trim(t.artists.joinToString(" / "), area.width - 40f, 12f)
+        val artist = ui.trim(I18n.text(t.platform.label) + " · " + t.artists.joinToString(" / "), area.width - 40f, 12f)
         ui.text(artist, cx - ui.width(artist, 12f) / 2f, ty + 21f, 12f, Theme.TEXT_SECONDARY)
         val idx = "${cfTarget + 1} / ${tracks.size}"
         ui.text(idx, cx - ui.width(idx, 11f) / 2f, ty + 38f, 11f, Theme.TEXT_TERTIARY)

@@ -186,3 +186,42 @@ Unable to connect to Firebase: %s	连不上 Firebase（%s）
 Failed to create room: %s	创建房间失败（%s）
 Failed to join room: %s	加入失败（%s）
 Reset	重置
+
+QQ Music	QQ 音乐
+Log in to QQ Music	登录 QQ 音乐
+QQ QR login	QQ 扫码
+WeChat QR login	微信扫码
+Scan with the QQ app	打开手机 QQ 扫码
+Scan with WeChat	打开微信扫码
+Liked songs	我喜欢
+This audio format is not supported; MP3 is required	暂不支持此音频格式，需要 MP3 资源
+Invalid MP3 audio	MP3 音频无效
+No playable resource; check platform login, subscription or region	没有可播放资源，请检查对应平台登录、会员或地区权限
+Music request failed; check network or platform service	音乐请求失败，请检查网络或平台服务
+Audio output failed	音频输出失败
+QQ Music service is unavailable	QQ 音乐服务暂不可用
+Invalid QQ Music response	QQ 音乐响应格式无效
+QQ Music request rejected; sign in again or retry later	QQ 音乐拒绝请求，请重新登录或稍后重试
+QQ Music session expired; please sign in again	QQ 音乐登录已过期，请重新登录
+Please sign in to QQ Music	请先登录 QQ 音乐
+QQ Music login did not return complete credentials	QQ 音乐登录没有返回完整凭证
+Music response is too large	音乐响应超过大小限制
+QQ Music: search songs or log in to view your playlists	QQ 音乐：搜索歌曲或登录查看我的歌单
+QQ Music charts are not available in this version	当前版本暂未接入 QQ 音乐排行榜
+Unknown music platform in room	房间使用了未知音乐平台
+Phone verification	手机验证码
+Country code	国家区号
+Phone number	手机号
+Verification code	验证码
+Send code	发送验证码
+Verifying...	正在验证…
+Enter a valid phone number and country code	请输入有效的手机号和国家区号
+Enter a valid phone number and verification code	请输入有效的手机号和验证码
+Sending verification code...	正在发送验证码…
+Verification code sent	验证码已发送
+Complete QQ Music security verification in your browser, then retry	请在浏览器完成 QQ 音乐安全验证后重试
+Open security verification	打开安全验证
+Too many requests; please try later	请求过于频繁，请稍后重试
+QQ Music phone login is unavailable; use QR login	QQ 音乐手机号登录暂不可用，请改用扫码
+Unable to send verification code; try QR login	验证码发送失败，请尝试扫码登录
+Verification failed or code expired; try again or use QR login	验证失败或验证码已过期，请重试或使用扫码登录

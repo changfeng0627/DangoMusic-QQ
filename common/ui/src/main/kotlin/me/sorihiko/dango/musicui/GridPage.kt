@@ -4,7 +4,7 @@ import me.sorihiko.dango.i18n.I18n
 
 import me.sorihiko.dango.music.CoverCache
 import me.sorihiko.dango.music.MusicScreen
-import me.sorihiko.dango.music.NeteasePlaylist
+import me.sorihiko.dango.music.MusicPlaylist
 import me.sorihiko.dango.ui.LayoutBounds
 import me.sorihiko.dango.ui.ShapeStyle
 import me.sorihiko.dango.ui.Theme
@@ -36,7 +36,7 @@ internal class GridPage(private val screen: MusicScreen) {
         target = (target + (if (wheel > 0) -120f else 120f)).coerceIn(0f, maxScroll)
     }
 
-    fun draw(page: LayoutBounds, title: String, sub: String, items: List<NeteasePlaylist>, loading: Boolean) {
+    fun draw(page: LayoutBounds, title: String, sub: String, items: List<MusicPlaylist>, loading: Boolean) {
         ui.headerAnim {
             ui.text(title, page.x, page.y, 22f, Theme.TEXT_PRIMARY, Theme.FONT_DISPLAY)
             ui.text(if (loading) I18n.text("Loading...") else sub, page.x, page.y + 30f, 11f, Theme.TEXT_SECONDARY, Theme.FONT_SEMIBOLD)
@@ -45,7 +45,7 @@ internal class GridPage(private val screen: MusicScreen) {
         drawGrid(area, items)
     }
 
-    private fun drawGrid(area: LayoutBounds, items: List<NeteasePlaylist>) {
+    private fun drawGrid(area: LayoutBounds, items: List<MusicPlaylist>) {
         val gap = 22f
         val cols = max(2, ((area.width + gap) / (160f + gap)).toInt())
         val cw = (area.width - gap * (cols - 1)) / cols

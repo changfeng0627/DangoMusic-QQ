@@ -174,6 +174,9 @@ object LyricSplit {
 /** 按网易云歌曲 ID 取歌词（逐字 yrc 优先，没有就用普通 LRC） */
 object LyricsProvider {
 
+    fun forTrack(track: me.sorihiko.dango.music.MusicTrack): Lyrics? =
+        me.sorihiko.dango.music.MusicServices.forPlatform(track.platform).getLyrics(track)
+
     private const val UA =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 DangoMusic"
 

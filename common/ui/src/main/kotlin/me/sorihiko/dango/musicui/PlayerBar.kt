@@ -32,7 +32,7 @@ internal class PlayerBar(private val screen: MusicScreen, private val module: Ne
         ui.drawCover(coverBox, t?.let { CoverCache.track(it) }, 8f)
         val infoX = coverBox.right + 12f
         val infoW = 220f
-        val title = t?.name ?: I18n.text("Not playing")
+        val title = t?.let { "[${I18n.text(it.platform.label)}] ${it.name}" } ?: I18n.text("Not playing")
         ui.text(ui.trim(title, infoW, 14f, Theme.FONT_SEMIBOLD), infoX, coverBox.y + 9f, 14f, Theme.TEXT_PRIMARY, Theme.FONT_SEMIBOLD)
         val sub = when {
             t == null -> "-"

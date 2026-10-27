@@ -119,14 +119,14 @@ class MusicScreen(
         if (ScreenState.backPage != null) goBack() else go(Page.HOME)
     }
 
-    internal fun openPlaylist(p: NeteasePlaylist, from: Page?) {
-        if (ScreenState.opened?.id != p.id) tracks.clearFilter()
+    internal fun openPlaylist(p: MusicPlaylist, from: Page?) {
+        if (ScreenState.opened?.key != p.key) tracks.clearFilter()
         ScreenState.opened = p
         ScreenState.page = Page.PLAYLIST
         ScreenState.backPage = from
         tracks.resetScroll()
         tracks.resetCoverflow()
-        Library.loadTracks(p.id)
+        Library.loadTracks(p)
     }
 
     internal fun doSearch() {
@@ -256,7 +256,7 @@ class MusicScreen(
         settings.area = LayoutBounds()
 
         val s = ScreenState
-        val key = "${s.page}|${s.opened?.id}|${s.settingsTab}|${s.coverView}|${s.lastQuery}"
+        val key = "${Library.platform.platformId}|${s.page}|${s.opened?.key}|${s.settingsTab}|${s.coverView}|${s.lastQuery}"
         if (key != pageKey) {
             pageKey = key
             ui.pageAt = System.currentTimeMillis()
@@ -267,12 +267,12 @@ class MusicScreen(
             Page.HOME -> {
                 val rec = Library.recommend
                 val items = if (rec.isNullOrEmpty()) Library.playlists else rec
-                val label = if (rec.isNullOrEmpty()) I18n.text("Your playlists") else I18n.text("Recommended playlists")
+                val label = if (Library.platform == MusicPlatform.QQ && items.isEmpty()) I18n.text("QQ Music: search songs or log in to view your playlists") else if (rec.isNullOrEmpty()) I18n.text("Your playlists") else I18n.text("Recommended playlists")
                 grid.draw(body, I18n.text("Welcome to Dango Music!"), "$label · ${items.size}", items, Library.recommendLoading && items.isEmpty())
             }
             Page.CHARTS -> {
                 val c = Library.charts ?: emptyList()
-                grid.draw(body, I18n.text("Charts"), I18n.format("%d charts", c.size), c, Library.chartsLoading)
+                grid.draw(body, I18n.text("Charts"), if (Library.platform == MusicPlatform.QQ && c.isEmpty()) I18n.text("QQ Music charts are not available in this version") else I18n.format("%d charts", c.size), c, Library.chartsLoading)
             }
             Page.PARTY -> ui.itemAnim(0) { party.draw(body) }
             Page.SETTINGS -> settings.draw(body)
@@ -359,7 +359,7 @@ class MusicScreen(
             return
         }
         if (login.visible) {
-            login.keyTyped(keyCode)
+            login.keyTyped(typedChar, keyCode)
             return
         }
         // 正在输入 / 录按键的地方先拿走按键

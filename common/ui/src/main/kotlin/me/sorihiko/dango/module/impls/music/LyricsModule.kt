@@ -19,7 +19,7 @@ import me.sorihiko.dango.module.values.IntValue
 import me.sorihiko.dango.module.values.ModuleValue
 import me.sorihiko.dango.music.CoverArt
 import me.sorihiko.dango.music.MusicPlayer
-import me.sorihiko.dango.music.NeteaseTrack
+import me.sorihiko.dango.music.MusicTrack
 
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
@@ -121,8 +121,8 @@ class LyricsModule : Module() {
     // ---------------------------------------------------------------- 状态
 
     /** 正在播放的歌（来自内置播放器） */
-    private class NowPlaying(val track: NeteaseTrack, val playing: Boolean) {
-        val key: String get() = "netease:${track.id}"
+    private class NowPlaying(val track: MusicTrack, val playing: Boolean) {
+        val key: String get() = track.key
         val title: String get() = track.name
         val artist: String get() = track.artists.joinToString(" / ")
     }
@@ -200,10 +200,9 @@ class LyricsModule : Module() {
     private fun requestLyrics(s: NowPlaying) {
         val key = s.key
         if (cache.containsKey(key) || !pending.add(key)) return
-        val id = s.track.id
         fetcher.execute {
             try {
-                cache[key] = LyricsProvider.neteaseLyricById(id) ?: NotFound
+                cache[key] = LyricsProvider.forTrack(s.track) ?: NotFound
             } catch (_: Exception) {
                 cache[key] = NotFound
             } finally {

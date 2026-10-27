@@ -107,8 +107,8 @@ object CoverCache {
             var ok = false
             var why = ""
             try {
-                val full = if ("?" in url) url else "$url?param=200y200"
-                val bytes = NeteaseApi.request(full, "image/jpeg,image/png,image/*;q=0.8")
+                val full = if ("music.163.com" in url && "?" !in url) "$url?param=200y200" else url
+                val bytes = MusicHttp.download(full, "image/jpeg,image/png,image/*;q=0.8")
                 if (bytes == null) {
                     why = "download failed"
                 } else {
@@ -134,7 +134,7 @@ object CoverCache {
         return null
     }
 
-    fun track(t: NeteaseTrack) = get("t:${t.id}", t.coverUrl)
+    fun track(t: MusicTrack) = get("t:${t.key}", t.coverUrl)
 
     private const val ROUND_SUFFIX = "#r"
 
@@ -158,7 +158,7 @@ object CoverCache {
         return null
     }
 
-    fun trackRounded(t: NeteaseTrack, ratio: Float = ROUND) = rounded("t:${t.id}", t.coverUrl, ratio)
+    fun trackRounded(t: MusicTrack, ratio: Float = ROUND) = rounded("t:${t.key}", t.coverUrl, ratio)
 
     /** 四个角挖成圆角（抗锯齿：边缘按覆盖率给透明度） */
     private fun roundCorners(src: BufferedImage, ratio: Float): BufferedImage {
@@ -182,7 +182,7 @@ object CoverCache {
         }
         return out
     }
-    fun playlist(p: NeteasePlaylist) = get("p:${p.id}", p.coverUrl)
+    fun playlist(p: MusicPlaylist) = get("p:${p.key}", p.coverUrl)
 
     private fun square(src: BufferedImage, size: Int): BufferedImage {
         val side = min(src.width, src.height)

@@ -25,23 +25,21 @@ import javax.crypto.spec.SecretKeySpec
  *   3. 轮询扫码状态：801 等待扫码 / 802 已扫码待确认 / 803 成功（响应里带登录 Cookie）/ 800 过期
  * 成功后自动把 Cookie 写进 config/dangomusic/netease_cookie.txt
  */
-object NeteaseLogin {
+object NeteaseLogin : MusicLogin {
 
-    enum class State { IDLE, LOADING, WAITING, SCANNED, SUCCESS, EXPIRED, ERROR }
-
-    @Volatile var state = State.IDLE
+    @Volatile override var state = LoginState.IDLE
         private set
-    @Volatile var qrImage: BufferedImage? = null
+    @Volatile override var qrImage: BufferedImage? = null
         private set
     /** 每生成一张新二维码 +1，界面据此重新上传纹理 */
-    @Volatile var qrVersion = 0
+    @Volatile override var qrVersion = 0
         private set
 
     @Volatile private var session = 0
 
-    fun start() {
+    override fun start(channel: LoginChannel) {
         val my = ++session
-        state = State.LOADING
+        state = LoginState.LOADING
         qrImage = null
         Thread({ run(my) }, "Dango-NeteaseLogin").apply {
             isDaemon = true
@@ -49,9 +47,9 @@ object NeteaseLogin {
         }
     }
 
-    fun cancel() {
+    override fun cancel() {
         ++session
-        if (state != State.SUCCESS) state = State.IDLE
+        if (state != LoginState.SUCCESS) state = LoginState.IDLE
         qrImage = null
     }
 
@@ -60,13 +58,13 @@ object NeteaseLogin {
             val keyResp = weapi("https://music.163.com/weapi/login/qrcode/unikey", """{"type":1}""")
             val unikey = keyResp?.first?.let { JsonParser().parse(it).asJsonObject.get("unikey")?.asString }
             if (unikey.isNullOrEmpty()) {
-                if (my == session) state = State.ERROR
+                if (my == session) state = LoginState.ERROR
                 return
             }
             if (my != session) return
             qrImage = makeQr("https://music.163.com/login?codekey=$unikey", 256)
             qrVersion++
-            state = State.WAITING
+            state = LoginState.WAITING
 
             while (my == session) {
                 Thread.sleep(2000)
@@ -77,19 +75,19 @@ object NeteaseLogin {
                 ) ?: continue
                 val code = JsonParser().parse(resp.first).asJsonObject.get("code")?.asInt ?: continue
                 when (code) {
-                    801 -> state = State.WAITING
-                    802 -> state = State.SCANNED
+                    801 -> state = LoginState.WAITING
+                    802 -> state = LoginState.SCANNED
                     800 -> {
-                        state = State.EXPIRED
+                        state = LoginState.EXPIRED
                         return
                     }
                     803 -> {
                         val cookie = extractCookie(resp.second)
                         if (cookie.contains("MUSIC_U=")) {
                             NeteaseApi.saveCookie(cookie)
-                            state = State.SUCCESS
+                            state = LoginState.SUCCESS
                         } else {
-                            state = State.ERROR
+                            state = LoginState.ERROR
                         }
                         return
                     }
@@ -97,7 +95,7 @@ object NeteaseLogin {
             }
         } catch (e: Exception) {
             DangoLogger.warn("NetEase QR login failed: {}", e.toString())
-            if (my == session) state = State.ERROR
+            if (my == session) state = LoginState.ERROR
         }
     }
 

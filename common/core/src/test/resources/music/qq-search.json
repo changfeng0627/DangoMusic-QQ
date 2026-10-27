@@ -1,0 +1,1 @@
+{"body": {"item_song": {"items": [{"id": 123456, "mid": "003alphaMID", "title": "测试歌曲", "singer": [{"name": "歌手甲"}, {"name": "Artist B"}], "interval": 213, "album": {"mid": "albumMID"}, "file": {"media_mid": "mediaDifferentMID"}}, null, {"id": 99}]}}}

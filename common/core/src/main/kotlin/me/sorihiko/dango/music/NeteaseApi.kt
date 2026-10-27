@@ -299,6 +299,11 @@ object NeteaseApi {
         return songs
     }
 
+    fun track(id: Long): NeteaseTrack? {
+        val o = getJson("https://music.163.com/api/song/detail?ids=" + enc("[$id]")) ?: return null
+        return (o.getAsJsonArray("songs")?.firstOrNull() as? JsonObject)?.let { NeteaseTrack.parse(it) }
+    }
+
     // ---------------------------------------------------------------- 播放地址
 
     class SongUrl(val url: String, val trialOnly: Boolean)
@@ -342,7 +347,7 @@ object NeteaseApi {
                 conn.readTimeout = 15000
                 conn.setRequestProperty("User-Agent", UA)
                 conn.setRequestProperty("Accept", accept)
-                if (URL(current).host.endsWith("music.163.com")) {
+                if ((URL(current).host == "music.163.com" || URL(current).host.endsWith(".music.163.com"))) {
                     conn.setRequestProperty("Referer", "https://music.163.com/")
                     val c = cookie()
                     conn.setRequestProperty("Cookie", if (c.isEmpty()) "os=pc; appver=2.10.13" else "$c; os=pc; appver=2.10.13")

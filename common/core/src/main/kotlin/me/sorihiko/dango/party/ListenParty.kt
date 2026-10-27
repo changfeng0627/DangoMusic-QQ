@@ -6,7 +6,8 @@ import com.google.gson.JsonParser
 import me.sorihiko.dango.DangoLogger
 import me.sorihiko.dango.DangoMusic
 import me.sorihiko.dango.music.MusicPlayer
-import me.sorihiko.dango.music.NeteaseTrack
+import me.sorihiko.dango.music.MusicTrack
+import me.sorihiko.dango.music.MusicPlatform
 
 import java.security.SecureRandom
 import java.util.concurrent.Executors
@@ -32,7 +33,7 @@ object ListenParty {
     class Member(val uid: String, val name: String, val lastSeen: Long)
 
     private class RemoteState(
-        val trackId: Long, val name: String, val artists: List<String>, val cover: String, val duration: Long,
+        val trackId: String, val platform: MusicPlatform, val name: String, val artists: List<String>, val cover: String, val duration: Long,
         val pos: Long, val playing: Boolean, val at: Long,
     )
 
@@ -59,12 +60,12 @@ object ListenParty {
     private val rng = SecureRandom()
 
     // 房主：上一次发出去的状态
-    private var sentId = 0L
+    private var sentId = ""
     private var sentPlaying = false
     private var sentPos = 0L
     private var sentAt = 0L
     // 成员：已经请求加载的歌、上次纠正的时间
-    @Volatile private var requestedId = 0L
+    @Volatile private var requestedId = ""
     private var lastCorrection = 0L
     private var lastHeartbeat = 0L
 
@@ -141,7 +142,7 @@ object ListenParty {
                         hostUid = Firebase.uid
                         hostName = myName()
                         role = Role.HOST
-                        sentId = 0L                      // 马上把当前播放状态发出去
+                        sentId = ""                      // 马上把当前播放状态发出去
                         lastHeartbeat = System.currentTimeMillis()
                         startListening()
                         status = ""
@@ -177,7 +178,7 @@ object ListenParty {
                 }
                 code = c
                 role = Role.MEMBER
-                requestedId = 0L
+                requestedId = ""
                 MusicPlayer.followMode = true
                 lastHeartbeat = System.currentTimeMillis()
                 apply(room.asJsonObject)
@@ -219,7 +220,7 @@ object ListenParty {
 
     /** 成员：重新和房主对齐（自己点了别的歌之后想回来时用） */
     fun resync() {
-        requestedId = 0L
+        requestedId = ""
         lastCorrection = 0L
     }
 
@@ -271,9 +272,12 @@ object ListenParty {
         }?.sortedBy { if (it.uid == hostUid) 0 else 1 } ?: emptyList()
 
         val st = room.get("state") as? JsonObject
+        if (st != null && st.get("platform")?.let { it.isJsonPrimitive && MusicPlatform.fromId(it.asString) == null } == true)
+            status = "Unknown music platform in room"
         remote = if (st == null) null else try {
             RemoteState(
-                trackId = st.get("trackId").asLong,
+                trackId = PartyProtocol.track(st)?.id ?: throw IllegalArgumentException(),
+                platform = PartyProtocol.track(st)?.platform ?: throw IllegalArgumentException(),
                 name = st.get("name")?.asString ?: "",
                 artists = (st.get("artists")?.asString ?: "").split(" / ").filter { it.isNotEmpty() },
                 cover = st.get("cover")?.asString ?: "",
@@ -302,23 +306,25 @@ object ListenParty {
         val now = System.currentTimeMillis()
         if (st == MusicPlayer.State.LOADING || st == MusicPlayer.State.ERROR) {
             // 切歌了先告诉大家开始加载这首（暂停状态），真正开始放时再发一次
-            if (cur.id != sentId) send(cur, 0L, false)
+            if (cur.key != sentId) send(cur, 0L, false)
             return
         }
         val playing = st == MusicPlayer.State.PLAYING
         val pos = MusicPlayer.positionMs
         val predicted = sentPos + if (sentPlaying) now - sentAt else 0L
-        val changed = cur.id != sentId || playing != sentPlaying || abs(pos - predicted) > 1500 || now - sentAt > 15_000
+        val changed = cur.key != sentId || playing != sentPlaying || abs(pos - predicted) > 1500 || now - sentAt > 15_000
         if (changed) send(cur, pos, playing)
     }
 
-    private fun send(t: NeteaseTrack, pos: Long, playing: Boolean) {
+    private fun send(t: MusicTrack, pos: Long, playing: Boolean) {
         val now = System.currentTimeMillis()
-        sentId = t.id
+        sentId = t.key
         sentPlaying = playing
         sentPos = pos
         sentAt = now
         val o = JsonObject().apply {
+            addProperty("protocolVersion", 2)
+            addProperty("platform", t.platform.platformId)
             addProperty("trackId", t.id)
             addProperty("name", t.name)
             addProperty("artists", t.artists.joinToString(" / "))
@@ -339,17 +345,20 @@ object ListenParty {
     private fun followTick() {
         val s = remote ?: return
         val cur = MusicPlayer.current
-        if (cur?.id != s.trackId) {
-            if (requestedId != s.trackId) {
-                requestedId = s.trackId
-                val track = NeteaseTrack(s.trackId, s.name, s.artists, s.duration, s.cover)
+        val remoteKey = "${s.platform.platformId}:${s.trackId}"
+        if (cur?.key != remoteKey) {
+            if (requestedId != remoteKey) {
+                requestedId = remoteKey
+                val track = MusicTrack(s.platform, s.trackId, s.name, s.artists, s.duration, s.cover)
                 MusicPlayer.playTrackAt(track, { expectedPos(s) }, !s.playing)
                 lastCorrection = System.currentTimeMillis()
             }
             return
         }
         val st = MusicPlayer.state
-        if (st == MusicPlayer.State.LOADING || st == MusicPlayer.State.ERROR) return
+        if (st == MusicPlayer.State.ERROR) { status = MusicPlayer.message; return }
+        if (st == MusicPlayer.State.LOADING) return
+        status = ""
         val now = System.currentTimeMillis()
         if (now - lastCorrection < 2000) return
 

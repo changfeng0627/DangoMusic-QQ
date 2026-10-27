@@ -72,7 +72,7 @@ class DynamicIslandModule : Module() {
     private var lastNanos = 0L
     private var enabledAt = 0L
 
-    private var lastTrackId = 0L
+    private var lastTrackId = ""
     private var lastState: MusicPlayer.State? = null
 
     private val clock = SimpleDateFormat("HH:mm")
@@ -86,7 +86,7 @@ class DynamicIslandModule : Module() {
         temp = null
         contentAlpha = 0f
         lastNanos = 0L
-        lastTrackId = MusicPlayer.current?.id ?: 0L
+        lastTrackId = MusicPlayer.current?.key ?: ""
         lastState = MusicPlayer.state
     }
 
@@ -99,9 +99,9 @@ class DynamicIslandModule : Module() {
         val cur = MusicPlayer.current
         val st = MusicPlayer.state
         if (cur == null) {
-            lastTrackId = 0L
-        } else if (cur.id != lastTrackId) {
-            lastTrackId = cur.id
+            lastTrackId = ""
+        } else if (cur.key != lastTrackId) {
+            lastTrackId = cur.key
             if (songNotify.get()) show(Kind.SONG, (notifyTime.value * 1000).toLong())
         } else if (lastState != null && st != lastState && songNotify.get() &&
             (st == MusicPlayer.State.PAUSED || (st == MusicPlayer.State.PLAYING && lastState == MusicPlayer.State.PAUSED))

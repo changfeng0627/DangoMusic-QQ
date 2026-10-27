@@ -45,7 +45,7 @@ class CoverArt {
         requestedKey = key
         worker.execute {
             val img = try {
-                download(if ("?" in url) url else "$url?param=300y300")?.let { squareResize(it) }
+                download(if ("music.163.com" in url && "?" !in url) "$url?param=300y300" else url)?.let { squareResize(it) }
             } catch (_: Exception) {
                 null
             }
