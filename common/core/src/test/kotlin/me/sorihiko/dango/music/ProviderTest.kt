@@ -43,6 +43,17 @@ class ProviderTest {
     @Test fun emptyPurlIsPermissionDenial() {
         assertNull(QQProtocol.playUrl(QQProtocol.parse("""{"sip":["https://dl.stream.qqmusic.qq.com/"],"midurlinfo":[{"purl":"","vkey":"unused"}]}""")))
     }
+    @Test fun authorizedMp3WithEmptySipUsesQqMusicCdn() {
+        for (sip in listOf("", "\"sip\":[],", "\"sip\":[\"\"],")) {
+            val source = QQProtocol.playUrl(QQProtocol.parse("""{$sip"midurlinfo":[{"result":0,"filename":"M500fixture.mp3","purl":"M500fixture.mp3?vkey=fixture-only","vkey":"fixture-only"}]}"""))!!
+            assertEquals("https://isure.stream.qqmusic.qq.com/M500fixture.mp3?vkey=fixture-only", source.url)
+            assertEquals(AudioCodec.MP3, source.codec)
+        }
+    }
+    @Test fun missingCdnNeverMakesAnEmptyOrRejectedPurlPlayable() {
+        assertNull(QQProtocol.playUrl(QQProtocol.parse("""{"sip":[],"midurlinfo":[{"result":0,"purl":""}]}""")))
+        assertNull(QQProtocol.playUrl(QQProtocol.parse("""{"sip":[],"midurlinfo":[{"result":104003,"filename":"a.mp3","purl":"a.mp3?vkey=stale"}]}""")))
+    }
     @Test fun aacIsNotAdvertisedAsPlayableMp3() {
         assertNull(QQProtocol.playUrl(QQProtocol.parse("""{"sip":["https://dl.stream.qqmusic.qq.com/"],"midurlinfo":[{"purl":"C400a.m4a","filename":"C400a.m4a"}]}""")))
         assertFalse(AudioDecoders.supports(AudioCodec.M4A)); assertFalse(AudioDecoders.supports(AudioCodec.FLAC))

@@ -68,11 +68,16 @@ object QQProtocol {
     fun playUrl(data: JsonObject): AudioSource? {
         for (item in data.arr("midurlinfo")) {
             val o = item as? JsonObject ?: continue
+            if (o.str("result").let { it.isNotEmpty() && it != "0" }) continue
             val purl = o.str("purl"); if (purl.isBlank()) continue
             val filename = o.str("filename").ifEmpty { purl.substringBefore('?').substringAfterLast('/') }
             if (!filename.endsWith(".mp3", true)) continue
             val base = data.arr("sip").firstOrNull { it.isJsonPrimitive && it.asString.startsWith("https://") }?.asString
-                ?: data.arr("sip").firstOrNull { it.isJsonPrimitive }?.asString ?: continue
+                ?: data.arr("sip").firstOrNull { it.isJsonPrimitive && it.asString.isNotBlank() }?.asString
+                // Current authenticated vkey replies can return result=0 and an authorized
+                // purl while leaving sip empty. Use QQ Music's normal CDN, retaining that
+                // exact server-issued path and vkey; an empty/denied purl still never plays.
+                ?: "https://isure.stream.qqmusic.qq.com/"
             val url = try { URL(URL(base), purl).toString() } catch (_: Exception) { continue }
             val host = URL(url).host.lowercase()
             // A vkey is used only on QQ Music's own CDN, never on a third-party resolver.
