@@ -24,6 +24,7 @@ class ModernMusicScreen(
     override fun isPauseScreen() = false
 
     override fun onRender() {
+        me.sorihiko.dango.ui.glass.GlassBackdrop.nextFrame()
         screen.render()
     }
 

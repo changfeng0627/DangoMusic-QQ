@@ -130,6 +130,7 @@ object Gl {
  * 包住我们自己的一段绘制：前后原版的渲染状态完全不变。
  */
 class GlState {
+    private var restored = false
     private val program = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM)
     private val vao = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING)
     private val arrayBuffer = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING)
@@ -147,6 +148,7 @@ class GlState {
     private val depthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
     private val depthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK)
     private val cull = GL11.glIsEnabled(GL11.GL_CULL_FACE)
+    private val framebufferSrgb = GL11.glIsEnabled(GL30.GL_FRAMEBUFFER_SRGB)
     private val scissor = GL11.glIsEnabled(GL11.GL_SCISSOR_TEST)
     private val scissorBox = IntArray(4)
     private val viewport = IntArray(4)
@@ -163,30 +165,38 @@ class GlState {
         val mask = org.lwjgl.BufferUtils.createByteBuffer(4)
         GL11.glGetBooleanv(GL11.GL_COLOR_WRITEMASK, mask)
         for (k in 0..3) colorMask[k] = mask.get(k)
+        Imm.enterScope()
     }
 
     fun restore() {
-        McCompat.bindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFbo)
-        McCompat.bindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFbo)
-        Gl.viewport(viewport[0], viewport[1], viewport[2], viewport[3])
-        GL20.glUseProgram(program)
-        GL30.glBindVertexArray(vao)
-        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, arrayBuffer)
+        if (restored) return
+        restored = true
+        try {
+            McCompat.bindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFbo)
+            McCompat.bindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFbo)
+            Gl.viewport(viewport[0], viewport[1], viewport[2], viewport[3])
+            GL20.glUseProgram(program)
+            GL30.glBindVertexArray(vao)
+            GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, arrayBuffer)
 
-        for (i in 1 downTo 0) {
-            Gl.activeTexture(GL13.GL_TEXTURE0 + i)
-            Gl.bindTexture(binding[i])
+            for (i in 1 downTo 0) {
+                Gl.activeTexture(GL13.GL_TEXTURE0 + i)
+                Gl.bindTexture(binding[i])
+            }
+            Gl.activeTexture(activeTex)
+
+            Gl.blend(blend)
+            Gl.blendFunc(srcRgb, dstRgb, srcAlpha, dstAlpha)
+            GL20.glBlendEquationSeparate(eqRgb, eqAlpha)
+            Gl.depthTest(depthTest)
+            Gl.depthMask(depthMask)
+            Gl.cull(cull)
+            if (framebufferSrgb) GL11.glEnable(GL30.GL_FRAMEBUFFER_SRGB) else GL11.glDisable(GL30.GL_FRAMEBUFFER_SRGB)
+            Gl.scissor(scissor)
+            Gl.scissorBox(scissorBox[0], scissorBox[1], scissorBox[2], scissorBox[3])
+            Gl.colorMask(colorMask[0].toInt() != 0, colorMask[1].toInt() != 0, colorMask[2].toInt() != 0, colorMask[3].toInt() != 0)
+        } finally {
+            Imm.leaveScope()
         }
-        Gl.activeTexture(activeTex)
-
-        Gl.blend(blend)
-        Gl.blendFunc(srcRgb, dstRgb, srcAlpha, dstAlpha)
-        GL20.glBlendEquationSeparate(eqRgb, eqAlpha)
-        Gl.depthTest(depthTest)
-        Gl.depthMask(depthMask)
-        Gl.cull(cull)
-        Gl.scissor(scissor)
-        Gl.scissorBox(scissorBox[0], scissorBox[1], scissorBox[2], scissorBox[3])
-        Gl.colorMask(colorMask[0].toInt() != 0, colorMask[1].toInt() != 0, colorMask[2].toInt() != 0, colorMask[3].toInt() != 0)
     }
 }

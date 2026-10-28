@@ -21,6 +21,13 @@ import java.nio.FloatBuffer
  * [endFixed] 用 [Fixed] 的固定管线替代品画（颜色 × 贴图，矩阵来自 [Fixed]），相当于 1.8.9 的固定管线。
  */
 object Imm {
+    // A GlState guard already restores these bindings at the boundary. Within that
+    // guard, draws always bind their own VAO/VBO/program, so querying and restoring
+    // the driver state for every custom UI quad is redundant.
+    private var scopeDepth = 0
+    internal val inScope: Boolean get() = scopeDepth > 0
+    internal fun enterScope() { scopeDepth++ }
+    internal fun leaveScope() { check(scopeDepth > 0); scopeDepth-- }
     const val ATTR_POS = 0
     const val ATTR_UV = 1
 
@@ -97,9 +104,12 @@ object Imm {
             vao = GL30.glGenVertexArrays()
             vbo = GL15.glGenBuffers()
         }
-        val prevProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM)
-        val prevVao = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING)
-        val prevBuffer = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING)
+        // Fixed draws can alternate with Minecraft's font renderer, whose binding
+        // caches must still agree with the driver between individual draws.
+        val guarded = inScope && !fixed
+        val prevProgram = if (!guarded && fixed) GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM) else 0
+        val prevVao = if (!guarded) GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING) else 0
+        val prevBuffer = if (!guarded) GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING) else 0
 
         if (fixed) Fixed.use(textured)
 
@@ -129,9 +139,11 @@ object Imm {
         GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, count)
 
         // 原样换回去：Minecraft 记着它自己绑的是哪个 VAO / 着色器
-        GL30.glBindVertexArray(prevVao)
-        GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, prevBuffer)
-        if (fixed) GL20.glUseProgram(prevProgram)
+        if (!guarded) {
+            GL30.glBindVertexArray(prevVao)
+            GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, prevBuffer)
+            if (fixed) GL20.glUseProgram(prevProgram)
+        }
         count = 0
     }
 }

@@ -48,6 +48,7 @@ object ModernDango {
     @JvmStatic
     fun worldRenderEnd() {
         if (!started || !McCompat.glAvailable) return
+        me.sorihiko.dango.ui.glass.GlassBackdrop.nextFrame()
         ModernWorld.basePose.identity()
             .rotateX(Math.toRadians(McCompat.cameraXRot().toDouble()).toFloat())
             .rotateY(Math.toRadians(McCompat.cameraYRot().toDouble() + 180.0).toFloat())

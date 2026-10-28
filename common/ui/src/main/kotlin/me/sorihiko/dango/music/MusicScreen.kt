@@ -61,16 +61,12 @@ class MusicScreen(
     private var lastNanos = 0L
     /** 换页（含换歌单 / 设置换标签 / 新搜索 / 列表↔封面墙）就重新播入场动画 */
     private var pageKey = ""
-    private var backdropAt = 0L
-    private var backdropWidth = 0
-    private var backdropHeight = 0
     private val frameStats = UiFrameStats()
 
     /** 界面打开时调用 */
     fun opened() {
         if (closingAt != 0L) return // 关闭期间的窗口尺寸变化不重新播放入场。
         closed = false
-        backdropAt = 0L
         frameStats.reset()
         openKeyHeld = platform.isKeyDown(module.openKey.value)
         if (ScreenState.context == null) ScreenState.context = DangoClient.gfx.newCanvas()
@@ -194,16 +190,9 @@ class MusicScreen(
         ui.my = (platform.mouseY / scale).toInt()
         val ctx = ui.ctx
         val renderStart = System.nanoTime()
-        // Keep input, text and controls at the game's full frame rate. Only the expensive
-        // QQ background copy + 13 blur passes reuse their previous textures for up to 33ms.
-        val capture = Library.platform != MusicPlatform.QQ || backdropAt == 0L ||
-            renderStart - backdropAt >= 33_333_333L ||
-            backdropWidth != platform.windowWidth || backdropHeight != platform.windowHeight
-        ctx.begin(capture, ui.mx, ui.my)
-        if (capture) {
-            backdropAt = renderStart
-            backdropWidth = platform.windowWidth; backdropHeight = platform.windowHeight
-        }
+        // Both platforms animate at the game's frame rate. The renderer shares work
+        // between canvases in the same frame rather than throttling QQ updates.
+        ctx.begin(true, ui.mx, ui.my)
         val captureEnd = System.nanoTime()
         try {
             val now = System.nanoTime()

@@ -282,57 +282,60 @@ void main() {
         GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, savedFbo)
         GL11.glViewport(savedViewport.get(0), savedViewport.get(1), savedViewport.get(2), savedViewport.get(3))
         val state = GlState()
-        Gl.depthTest(false)
-        Gl.cull(false)
-        Gl.scissor(false)
-        Gl.activeTexture(GL13.GL_TEXTURE0)
+        try {
+            Gl.depthTest(false)
+            Gl.cull(false)
+            Gl.scissor(false)
+            Gl.activeTexture(GL13.GL_TEXTURE0)
 
-        // 逐级缩小
-        Gl.blend(false)
-        GL20.glUseProgram(progDown)
-        GL20.glUniform1i(GL20.glGetUniformLocation(progDown, "tex"), 0)
-        val texelDown = GL20.glGetUniformLocation(progDown, "texel")
-        var srcTex = maskTex
-        var srcW = width
-        var srcH = height
-        for (i in 0 until LEVELS) {
-            GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, levelFbo[i])
-            GL11.glViewport(0, 0, levelW[i], levelH[i])
-            Gl.bindTexture(srcTex)
-            GL20.glUniform2f(texelDown, 1f / srcW, 1f / srcH)
+            // 逐级缩小
+            Gl.blend(false)
+            GL20.glUseProgram(progDown)
+            GL20.glUniform1i(GL20.glGetUniformLocation(progDown, "tex"), 0)
+            val texelDown = GL20.glGetUniformLocation(progDown, "texel")
+            var srcTex = maskTex
+            var srcW = width
+            var srcH = height
+            for (i in 0 until LEVELS) {
+                GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, levelFbo[i])
+                GL11.glViewport(0, 0, levelW[i], levelH[i])
+                Gl.bindTexture(srcTex)
+                GL20.glUniform2f(texelDown, 1f / srcW, 1f / srcH)
+                quad()
+                srcTex = levelTex[i]
+                srcW = levelW[i]
+                srcH = levelH[i]
+            }
+
+            // 逐级放大并叠加（加法混合）
+            Gl.blend(true)
+            Gl.blendFunc(GL11.GL_ONE, GL11.GL_ONE)
+            GL20.glUseProgram(progUp)
+            GL20.glUniform1i(GL20.glGetUniformLocation(progUp, "tex"), 0)
+            val texelUp = GL20.glGetUniformLocation(progUp, "texel")
+            GL20.glUniform1f(GL20.glGetUniformLocation(progUp, "intensity"), 0.55f + spread.coerceIn(0f, 1f) * 0.6f)
+            for (i in LEVELS - 2 downTo 0) {
+                GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, levelFbo[i])
+                GL11.glViewport(0, 0, levelW[i], levelH[i])
+                Gl.bindTexture(levelTex[i + 1])
+                GL20.glUniform2f(texelUp, 1f / levelW[i + 1], 1f / levelH[i + 1])
+                quad()
+            }
+
+            // 合成到原来的画面上（加法混合）
+            GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, savedFbo)
+            GL11.glViewport(savedViewport.get(0), savedViewport.get(1), savedViewport.get(2), savedViewport.get(3))
+            GL20.glUseProgram(progComp)
+            GL20.glUniform1i(GL20.glGetUniformLocation(progComp, "tex"), 0)
+            GL20.glUniform3f(GL20.glGetUniformLocation(progComp, "tint"), r, g, b)
+            GL20.glUniform1f(GL20.glGetUniformLocation(progComp, "exposure"), exposure)
+            Gl.blendFunc(GL11.GL_ONE, GL11.GL_ONE)
+            Gl.bindTexture(levelTex[0])
             quad()
-            srcTex = levelTex[i]
-            srcW = levelW[i]
-            srcH = levelH[i]
+
+        } finally {
+            state.restore()   // 原样恢复（帧缓冲、视口、混合、着色器、贴图）
         }
-
-        // 逐级放大并叠加（加法混合）
-        Gl.blend(true)
-        Gl.blendFunc(GL11.GL_ONE, GL11.GL_ONE)
-        GL20.glUseProgram(progUp)
-        GL20.glUniform1i(GL20.glGetUniformLocation(progUp, "tex"), 0)
-        val texelUp = GL20.glGetUniformLocation(progUp, "texel")
-        GL20.glUniform1f(GL20.glGetUniformLocation(progUp, "intensity"), 0.55f + spread.coerceIn(0f, 1f) * 0.6f)
-        for (i in LEVELS - 2 downTo 0) {
-            GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, levelFbo[i])
-            GL11.glViewport(0, 0, levelW[i], levelH[i])
-            Gl.bindTexture(levelTex[i + 1])
-            GL20.glUniform2f(texelUp, 1f / levelW[i + 1], 1f / levelH[i + 1])
-            quad()
-        }
-
-        // 合成到原来的画面上（加法混合）
-        GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, savedFbo)
-        GL11.glViewport(savedViewport.get(0), savedViewport.get(1), savedViewport.get(2), savedViewport.get(3))
-        GL20.glUseProgram(progComp)
-        GL20.glUniform1i(GL20.glGetUniformLocation(progComp, "tex"), 0)
-        GL20.glUniform3f(GL20.glGetUniformLocation(progComp, "tint"), r, g, b)
-        GL20.glUniform1f(GL20.glGetUniformLocation(progComp, "exposure"), exposure)
-        Gl.blendFunc(GL11.GL_ONE, GL11.GL_ONE)
-        Gl.bindTexture(levelTex[0])
-        quad()
-
-        state.restore()   // 原样恢复（帧缓冲、视口、混合、着色器、贴图）
     }
 
     /** 中途出错时保证切回原来的帧缓冲 */

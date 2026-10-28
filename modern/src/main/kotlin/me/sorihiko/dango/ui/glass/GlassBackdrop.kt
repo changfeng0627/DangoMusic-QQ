@@ -23,17 +23,24 @@ import java.nio.ByteBuffer
  * 必须在绘制菜单之前调用 [capture]，这样菜单自身不会出现在背景里。
  */
 class GlassBackdrop {
+    companion object {
+        private var frame = 0L
+        /** Deduplicate HUD canvases within one frame, without throttling animation. */
+        fun nextFrame() { frame++ }
+    }
     private val quadShader = ModernGl.shaderManager.get<QuadShader>()
     private val blurShader = ModernGl.shaderManager.get<GlassBlurShader>()
 
-    private var captureTexture = -1
     private var width = 0
     private var height = 0
-    private var capturedAt = 0L
+    private var capturedFrame = -1L
     internal var captures = 0L; private set
     internal var resizes = 0L; private set
 
     private val half = GlassTarget()
+    // Allocated only for multisampled source buffers, which must be resolved 1:1
+    // before scaling. Normal Minecraft framebuffers need no full-size copy.
+    private val resolve = GlassTarget()
     private val softA = GlassTarget()
     private val softB = GlassTarget()
     private val frostA = GlassTarget()
@@ -50,28 +57,42 @@ class GlassBackdrop {
         val w = window.width
         val h = window.height
         if (w <= 0 || h <= 0) return
-        val now = System.nanoTime()
-        // Input and foreground rendering stay at the game's frame rate. Only the blurred
-        // world texture is updated at 30 Hz, shared by the window, Song Card and island.
-        if (ready && w == width && h == height && now - capturedAt < 33_333_333L) return
+        if (ready && w == width && h == height && capturedFrame == frame) return
 
         // 高版本没有 glPushAttrib：自己记下状态，最后原样恢复（帧缓冲、视口、混合、贴图……）
         val state = GlState()
         try {
-            if (w != width || h != height || captureTexture == -1) resize(w, h)
+            val source = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING)
+            if (w != width || h != height || half.fbo == -1) resize(w, h)
 
             Gl.activeTexture(GL13.GL_TEXTURE0)
-            Gl.bindTexture(captureTexture)
-            GL11.glCopyTexSubImage2D(GL11.GL_TEXTURE_2D, 0, 0, 0, 0, 0, w, h)
-
             Gl.blend(false)
             Gl.depthTest(false)
             Gl.scissor(false)
             Gl.cull(false)
             Gl.colorMask(true, true, true, true)
+            // Preserve the old raw-copy colors. A blit from an sRGB framebuffer
+            // would otherwise decode the source into our linear RGBA8 targets.
+            GL11.glDisable(GL30.GL_FRAMEBUFFER_SRGB)
+
+            // Capture directly at half resolution: no full-resolution texture upload,
+            // copy or extra fullscreen shader draw on the ordinary non-MSAA path.
+            GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, source)
+            val samples = GL11.glGetInteger(GL13.GL_SAMPLES)
+            GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, source)
+            if (samples > 1) {
+                resolve.ensure(w, h)
+                GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, source)
+                GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, resolve.fbo)
+                GL30.glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL11.GL_COLOR_BUFFER_BIT, GL11.GL_NEAREST)
+                GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, resolve.fbo)
+            } else if (resolve.fbo != -1) {
+                resolve.delete()
+            }
+            GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, half.fbo)
+            GL30.glBlitFramebuffer(0, 0, w, h, 0, 0, half.width, half.height, GL11.GL_COLOR_BUFFER_BIT, GL11.GL_LINEAR)
 
             // 逐级 2x 降采样（双线性正好取 2x2 平均，画面移动时不闪）
-            blit(captureTexture, half)
             blit(half.texture, softA)
             blur(softA, softB, 1f, 2)
 
@@ -79,7 +100,7 @@ class GlassBackdrop {
             blur(frostA, frostB, 1.6f, 3)
 
             ready = true
-            capturedAt = now
+            capturedFrame = frame
             captures++
         } finally {
             state.restore()
@@ -91,9 +112,7 @@ class GlassBackdrop {
         width = w
         height = h
 
-        if (captureTexture != -1) Gl.deleteTexture(captureTexture)
-        captureTexture = GlassTarget.createTexture(w, h)
-
+        resolve.delete()
         half.ensure(w / 2, h / 2)
         softA.ensure(w / 4, h / 4)
         softB.ensure(w / 4, h / 4)
@@ -135,13 +154,11 @@ class GlassBackdrop {
     }
 
     fun delete() {
-        if (captureTexture != -1) Gl.deleteTexture(captureTexture)
-        captureTexture = -1
-        listOf(half, softA, softB, frostA, frostB).forEach { it.delete() }
+        listOf(resolve, half, softA, softB, frostA, frostB).forEach { it.delete() }
         width = 0
         height = 0
         ready = false
-        capturedAt = 0L
+        capturedFrame = -1L
     }
 }
 

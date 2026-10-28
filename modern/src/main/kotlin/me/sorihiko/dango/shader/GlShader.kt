@@ -18,6 +18,13 @@ abstract class GlShader(
 ) {
     private var programId: Int = 0
     private var uniforms = mutableMapOf<String, Int>()
+    // Uniform values belong to this program and survive program switches. Keep the
+    // last submitted values, avoiding repeated transforms/samplers/colors per quad.
+    private val floatValues = mutableMapOf<Int, FloatArray>()
+    private val intValues = mutableMapOf<Int, Int>()
+
+    private fun values(id: Int, count: Int): FloatArray =
+        floatValues.getOrPut(id) { FloatArray(count) { Float.NaN } }
 
     fun linkProgram() {
         if (programId != 0) return
@@ -50,14 +57,16 @@ abstract class GlShader(
     fun getProgramID(): Int = programId
 
     private var previous = 0
+    private var restoreOnUnbind = true
 
     fun bind() {
-        previous = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM)
+        restoreOnUnbind = !Imm.inScope
+        if (restoreOnUnbind) previous = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM)
         GL20.glUseProgram(programId)
     }
 
     fun unbind() {
-        GL20.glUseProgram(previous)
+        if (restoreOnUnbind) GL20.glUseProgram(previous)
     }
 
     private fun getUniformId(name: String): Int {
@@ -84,17 +93,21 @@ abstract class GlShader(
     }
 
     protected fun setUniform2f(field: String, a: Float, b: Float) {
-        GL20.glUniform2f(
-            getUniformId(field),
-            a, b
-        )
+        val id = getUniformId(field)
+        if (id < 0) return
+        val v = values(id, 2)
+        if (v[0] == a && v[1] == b) return
+        GL20.glUniform2f(id, a, b)
+        v[0] = a; v[1] = b
     }
 
     protected fun setUniform4f(field: String, a: Float, b: Float, c: Float, d: Float) {
-        GL20.glUniform4f(
-            getUniformId(field),
-            a, b, c, d
-        )
+        val id = getUniformId(field)
+        if (id < 0) return
+        val v = values(id, 4)
+        if (v[0] == a && v[1] == b && v[2] == c && v[3] == d) return
+        GL20.glUniform4f(id, a, b, c, d)
+        v[0] = a; v[1] = b; v[2] = c; v[3] = d
     }
 
     protected fun setUniformColor(field: String, color: Color) {
@@ -102,21 +115,31 @@ abstract class GlShader(
     }
 
     protected fun setUniform1f(field: String, a: Float) {
-        GL20.glUniform1f(
-            getUniformId(field),
-            a
-        )
+        val id = getUniformId(field)
+        if (id < 0) return
+        val v = values(id, 1)
+        if (v[0] == a) return
+        GL20.glUniform1f(id, a)
+        v[0] = a
     }
 
     protected fun setUniform1i(field: String, a: Int) {
-        GL20.glUniform1i(getUniformId(field), a)
+        val id = getUniformId(field)
+        if (id < 0) return
+        if (intValues[id] == a) return
+        GL20.glUniform1i(id, a)
+        intValues[id] = a
     }
 
     protected fun setUniformMat4(field: String, mat4Buffer: FloatBuffer) {
-        GL20.glUniformMatrix4fv(
-            getUniformId(field),
-            false,
-            mat4Buffer
-        )
+        val id = getUniformId(field)
+        if (id < 0) return
+        val v = values(id, 16)
+        val start = mat4Buffer.position()
+        var same = true
+        for (i in 0..15) if (v[i] != mat4Buffer.get(start + i)) { same = false; break }
+        if (same) return
+        GL20.glUniformMatrix4fv(id, false, mat4Buffer)
+        for (i in 0..15) v[i] = mat4Buffer.get(start + i)
     }
 }

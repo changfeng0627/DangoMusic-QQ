@@ -47,15 +47,21 @@ class GlassRenderContext : GuiCanvas {
 
     override fun begin(captureBackdrop: Boolean, mouseX: Int, mouseY: Int) {
         snapshot = GlState()
-        val b = backdrop ?: sharedBackdrop.also { backdrop = it }
-        if (captureBackdrop) b.capture()
+        try {
+            val b = backdrop ?: sharedBackdrop.also { backdrop = it }
+            if (captureBackdrop) b.capture()
 
-        Gl.alphaBlend()
-        Gl.depthTest(false)
-        Gl.cull(false)
-        Gl.activeTexture(GL13.GL_TEXTURE0)
-        _mouseX = mouseX
-        _mouseY = mouseY
+            Gl.alphaBlend()
+            Gl.depthTest(false)
+            Gl.cull(false)
+            Gl.activeTexture(GL13.GL_TEXTURE0)
+            _mouseX = mouseX
+            _mouseY = mouseY
+        } catch (t: Throwable) {
+            snapshot?.restore()
+            snapshot = null
+            throw t
+        }
     }
 
     override fun end() {
