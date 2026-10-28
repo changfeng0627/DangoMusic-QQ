@@ -2,6 +2,8 @@
 
 # Dango Music
 
+本分支新增共享层 QQ 音乐支持：在侧栏切换网易云 / QQ 音乐，QQ 音乐提供 QQ、微信扫码及手机验证码登录入口。功能范围、账号验收限制及构建说明见 [QQ 音乐说明](docs/qq-music.md)。全部原有 Minecraft 构建目标继续保留。
+
 在 Minecraft 里听网易云音乐的 mod（1.8.9 Forge / 1.20.1 Fabric · Forge / 1.21.1 · 1.21.11 · 26.2 · 26.3 Fabric · NeoForge）：液态玻璃风格的播放器、漂浮在世界里的 3D 歌词、Song card、灵动岛，还能和朋友一起听歌。
 
 *A Minecraft mod (1.8.9 Forge / 1.20.1 Fabric & Forge / 1.21.1, 1.21.11, 26.2 & 26.3 Fabric & NeoForge) that brings a NetEase Cloud Music player into Minecraft — liquid-glass UI, 3D in-world lyrics, a song card HUD, a Dynamic Island and Listen Together.*

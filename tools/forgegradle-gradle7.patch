@@ -1,0 +1,107 @@
+diff --git a/src/main/java/net/minecraftforge/gradle/tasks/DeobfuscateJar.java b/src/main/java/net/minecraftforge/gradle/tasks/DeobfuscateJar.java
+index 389874d..a27cd5a 100644
+--- a/src/main/java/net/minecraftforge/gradle/tasks/DeobfuscateJar.java
++++ b/src/main/java/net/minecraftforge/gradle/tasks/DeobfuscateJar.java
+@@ -392,6 +392,8 @@ public class DeobfuscateJar extends CachedTask
+         this.inJar = inJar;
+     }
+ 
++    @Optional
++    @OutputFile
+     public File getLog()
+     {
+         if (log == null)
+@@ -437,6 +439,7 @@ public class DeobfuscateJar extends CachedTask
+      * @return Object that will resolve to
+      */
+     @SuppressWarnings("serial")
++    @org.gradle.api.tasks.Internal
+     public Closure<File> getDelayedOutput()
+     {
+         return new Closure<File>(DeobfuscateJar.class) {
+diff --git a/src/main/java/net/minecraftforge/gradle/tasks/GenSrgs.java b/src/main/java/net/minecraftforge/gradle/tasks/GenSrgs.java
+index 64a5f7e..1f1f2bb 100644
+--- a/src/main/java/net/minecraftforge/gradle/tasks/GenSrgs.java
++++ b/src/main/java/net/minecraftforge/gradle/tasks/GenSrgs.java
+@@ -57,7 +57,7 @@ public class GenSrgs extends CachedTask
+     @Cached @OutputFile private DelayedFile notchToSrg;
+     @Cached @OutputFile private DelayedFile notchToMcp;
+     @Cached @OutputFile private DelayedFile mcpToNotch;
+-    @Cached @OutputFile private DelayedFile SrgToMcp;
++    @Cached @OutputFile private DelayedFile srgToMcp;
+     @Cached @OutputFile private DelayedFile mcpToSrg;
+     @Cached @OutputFile private DelayedFile srgExc;
+     @Cached @OutputFile private DelayedFile mcpExc;
+@@ -432,12 +432,12 @@ public class GenSrgs extends CachedTask
+     
+     public File getSrgToMcp()
+     {
+-        return SrgToMcp.call();
++        return srgToMcp.call();
+     }
+ 
+     public void setSrgToMcp(DelayedFile deobfSrg)
+     {
+-        this.SrgToMcp = deobfSrg;
++        this.srgToMcp = deobfSrg;
+     }
+ 
+     public File getMcpToSrg()
+diff --git a/src/main/java/net/minecraftforge/gradle/tasks/SplitJarTask.java b/src/main/java/net/minecraftforge/gradle/tasks/SplitJarTask.java
+index 85dc010..98e69f5 100644
+--- a/src/main/java/net/minecraftforge/gradle/tasks/SplitJarTask.java
++++ b/src/main/java/net/minecraftforge/gradle/tasks/SplitJarTask.java
+@@ -49,7 +49,6 @@ public class SplitJarTask extends CachedTask implements PatternFilterable
+     @InputFile
+     private Object     inJar;
+ 
+-    @Input
+     private PatternSet pattern = new PatternSet();
+ 
+     @Cached
+@@ -175,12 +174,14 @@ public class SplitJarTask extends CachedTask implements PatternFilterable
+     }
+ 
+     @Override
++    @Input
+     public Set<String> getExcludes()
+     {
+         return pattern.getExcludes();
+     }
+ 
+     @Override
++    @Input
+     public Set<String> getIncludes()
+     {
+         return pattern.getIncludes();
+diff --git a/src/main/java/net/minecraftforge/gradle/user/patcherUser/TaskApplyBinPatches.java b/src/main/java/net/minecraftforge/gradle/user/patcherUser/TaskApplyBinPatches.java
+index ba98206..a80953f 100644
+--- a/src/main/java/net/minecraftforge/gradle/user/patcherUser/TaskApplyBinPatches.java
++++ b/src/main/java/net/minecraftforge/gradle/user/patcherUser/TaskApplyBinPatches.java
+@@ -62,8 +62,8 @@ public class TaskApplyBinPatches extends CachedTask
+ {
+     //@formatter:off
+     @InputFile  Object inJar;
+-    @InputFile  Object classesJar;
+-    @InputFile  Object resourcesJar;
++    Object classesJar;
++    Object resourcesJar;
+     @InputFile  Object patches;
+     //@formatter:on
+ 
+@@ -291,6 +291,7 @@ public class TaskApplyBinPatches extends CachedTask
+         this.patches = patchesJar;
+     }
+ 
++    @InputFile
+     public File getClassJar()
+     {
+         return getProject().file(classesJar);
+@@ -301,6 +302,7 @@ public class TaskApplyBinPatches extends CachedTask
+         this.classesJar = extraJar;
+     }
+ 
++    @InputFile
+     public File getResourceJar()
+     {
+         return getProject().file(resourcesJar);

@@ -2,13 +2,21 @@
 rem Build every Minecraft version and collect the jars in dist\
 setlocal
 cd /d "%~dp0"
-if exist dist rmdir /s /q dist
-mkdir dist
+if not exist dist mkdir dist
 rem Only collect jars of the current version (old builds stay in build\libs)
 for /f "tokens=2 delims==" %%v in ('findstr /b "version=" version.properties') do set "VER=%%v"
 
 echo === 1.8.9 (Forge) ===
+if defined DANGO_JDK8 set "JAVA_HOME=%DANGO_JDK8%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\bootstrap-legacy.ps1"
+if errorlevel 1 exit /b 1
 pushd legacy
+call gradlew.bat setupCiWorkspace
+if errorlevel 1 (
+    popd
+    echo Legacy workspace setup failed
+    exit /b 1
+)
 call gradlew.bat build
 if errorlevel 1 (
     popd

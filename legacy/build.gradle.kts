@@ -7,6 +7,8 @@ buildscript {
     repositories {
         maven("https://files.minecraftforge.net/maven")
         mavenCentral()
+        // Reproducible local bootstrap of the original plugin; see tools/bootstrap-legacy.ps1.
+        maven { url = uri(System.getenv("DANGO_MAVEN_REPO") ?: rootDir.resolve("../.gradle/maven")) }
         mavenLocal()
     }
     dependencies {

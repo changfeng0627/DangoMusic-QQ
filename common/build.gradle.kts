@@ -19,6 +19,10 @@ subprojects {
     group = "me.sorihiko.dango"
     version = modVersion
 
+    // The three build roots use different Kotlin compiler versions. Isolate their outputs when
+    // preparing the matrix concurrently so one compiler cannot replace another build's classes.
+    layout.buildDirectory.set(rootProject.layout.projectDirectory.dir("build/${gradle.gradleVersion}/$name"))
+
     repositories {
         mavenCentral()
         maven("https://libraries.minecraft.net")

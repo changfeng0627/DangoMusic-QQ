@@ -18,7 +18,10 @@ includeBuild("../common")
 // 加新版本：在 versions/ 里加一个文件夹，再把名字加到下面这行
 val targets = listOf("1.20.1-fabric", "1.20.1-forge", "1.21.1-fabric", "1.21.1-neoforge",
     "1.21.11-fabric", "1.21.11-neoforge")
-targets.forEach {
+// Optional isolated build, e.g. -Pdango.target=1.21.1-neoforge. Default still includes all six.
+val selectedTarget = providers.gradleProperty("dango.target").orNull
+require(selectedTarget == null || selectedTarget in targets) { "Unknown dango.target: $selectedTarget" }
+targets.filter { selectedTarget == null || it == selectedTarget }.forEach {
     include(it)
     project(":$it").projectDir = file("versions/$it")
 }
