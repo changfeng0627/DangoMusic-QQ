@@ -24,6 +24,11 @@ import kotlin.math.abs
 
 /** 高版本的液态玻璃画布：OpenGL 3.2 core + 自己的着色器（和 1.8.9 版画法完全一样） */
 class GlassRenderContext : GuiCanvas {
+    companion object {
+        // All canvases render the same world at the same window size. Keep one texture/FBO
+        // set, rather than repeating a fullscreen capture and blur for each HUD component.
+        private val sharedBackdrop by lazy { GlassBackdrop() }
+    }
     private val shapeShader = ModernGl.shaderManager.get<ShapeShader>()
     private val fontShader = ModernGl.shaderManager.get<FontShader>()
     private val imageShader = ModernGl.shaderManager.get<ImageShader>()
@@ -42,7 +47,7 @@ class GlassRenderContext : GuiCanvas {
 
     override fun begin(captureBackdrop: Boolean, mouseX: Int, mouseY: Int) {
         snapshot = GlState()
-        val b = backdrop ?: GlassBackdrop().also { backdrop = it }
+        val b = backdrop ?: sharedBackdrop.also { backdrop = it }
         if (captureBackdrop) b.capture()
 
         Gl.alphaBlend()

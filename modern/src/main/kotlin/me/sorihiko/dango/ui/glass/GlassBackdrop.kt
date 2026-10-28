@@ -29,6 +29,9 @@ class GlassBackdrop {
     private var captureTexture = -1
     private var width = 0
     private var height = 0
+    private var capturedAt = 0L
+    internal var captures = 0L; private set
+    internal var resizes = 0L; private set
 
     private val half = GlassTarget()
     private val softA = GlassTarget()
@@ -47,6 +50,10 @@ class GlassBackdrop {
         val w = window.width
         val h = window.height
         if (w <= 0 || h <= 0) return
+        val now = System.nanoTime()
+        // Input and foreground rendering stay at the game's frame rate. Only the blurred
+        // world texture is updated at 30 Hz, shared by the window, Song Card and island.
+        if (ready && w == width && h == height && now - capturedAt < 33_333_333L) return
 
         // 高版本没有 glPushAttrib：自己记下状态，最后原样恢复（帧缓冲、视口、混合、贴图……）
         val state = GlState()
@@ -72,12 +79,15 @@ class GlassBackdrop {
             blur(frostA, frostB, 1.6f, 3)
 
             ready = true
+            capturedAt = now
+            captures++
         } finally {
             state.restore()
         }
     }
 
     private fun resize(w: Int, h: Int) {
+        resizes++
         width = w
         height = h
 
@@ -131,6 +141,7 @@ class GlassBackdrop {
         width = 0
         height = 0
         ready = false
+        capturedAt = 0L
     }
 }
 

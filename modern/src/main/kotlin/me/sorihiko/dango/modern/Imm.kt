@@ -26,6 +26,10 @@ object Imm {
 
     private var vao = 0
     private var vbo = 0
+    private var gpuCapacityBytes = 0L
+    private var writeOffsetBytes = 0L
+    /** Diagnostic counters; storage is reused across the many tiny HUD/text draws. */
+    internal var bufferAllocations = 0L; private set
     private var data = FloatArray(4 * 6 * 256)
     private var count = 0          // 已交进来的点数（按四边形算）
     private val quad = FloatArray(16)
@@ -104,11 +108,23 @@ object Imm {
         upload.clear()
         upload.put(data, 0, count * 4)
         upload.flip()
-        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, upload, GL15.GL_STREAM_DRAW)
+        val bytes = count.toLong() * 16L
+        // Append into one upload arena. Replacing the entire data store for each six-vertex
+        // rectangle produces thousands of orphaned stores per second under the glass HUD.
+        // Separate ranges also avoid overwriting vertices still used by an earlier draw.
+        if (bytes > gpuCapacityBytes || writeOffsetBytes + bytes > gpuCapacityBytes) {
+            gpuCapacityBytes = maxOf(gpuCapacityBytes, 1_048_576L, bytes)
+            GL15.glBufferData(GL15.GL_ARRAY_BUFFER, gpuCapacityBytes, GL15.GL_STREAM_DRAW)
+            writeOffsetBytes = 0L
+            bufferAllocations++
+        }
+        val offset = writeOffsetBytes
+        GL15.glBufferSubData(GL15.GL_ARRAY_BUFFER, offset, upload)
+        writeOffsetBytes += bytes
         GL20.glEnableVertexAttribArray(ATTR_POS)
-        GL20.glVertexAttribPointer(ATTR_POS, 2, GL11.GL_FLOAT, false, 16, 0L)
+        GL20.glVertexAttribPointer(ATTR_POS, 2, GL11.GL_FLOAT, false, 16, offset)
         GL20.glEnableVertexAttribArray(ATTR_UV)
-        GL20.glVertexAttribPointer(ATTR_UV, 2, GL11.GL_FLOAT, false, 16, 8L)
+        GL20.glVertexAttribPointer(ATTR_UV, 2, GL11.GL_FLOAT, false, 16, offset + 8L)
         McCompat.beforeDraw()
         GL11.glDrawArrays(GL11.GL_TRIANGLES, 0, count)
 
