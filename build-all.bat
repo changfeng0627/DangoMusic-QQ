@@ -29,6 +29,7 @@ for %%f in (legacy\build\libs\DangoMusic-%VER%+1.8.9.jar) do xcopy /y /q "%%f" d
 
 rem 1.20.1+ (Fabric / Forge / NeoForge) need JDK 21 (set DANGO_JDK21 to override the default path)
 if not defined DANGO_JDK21 set "DANGO_JDK21=C:\Program Files\Java\jdk-21"
+set "JAVA_HOME=%DANGO_JDK21%"
 echo.
 echo === 1.20.1+ (Fabric / Forge / NeoForge) ===
 pushd modern
@@ -45,6 +46,7 @@ for /d %%d in (modern\versions\*) do (
 
 rem 26.x (Fabric / NeoForge) need JDK 25 (set DANGO_JDK25 to override the default path)
 if not defined DANGO_JDK25 set "DANGO_JDK25=C:\Program Files\Eclipse Adoptium\jdk-25.0.4.101-hotspot"
+set "JAVA_HOME=%DANGO_JDK25%"
 echo.
 echo === 26.x (Fabric / NeoForge) ===
 pushd modern26
