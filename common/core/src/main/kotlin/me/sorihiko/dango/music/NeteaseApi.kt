@@ -34,6 +34,7 @@ object NeteaseApi {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 
     private val cookieFile: File get() = DangoMusic.instance.clientDir.resolve("netease_cookie.txt").toFile()
+    @Volatile private var knownCookie = ""
 
     @Volatile var nickname: String = ""
         private set
@@ -45,14 +46,16 @@ object NeteaseApi {
     /** 读 cookie 文件；只填了 MUSIC_U 的值也行 */
     private fun cookie(): String {
         val f = cookieFile
-        if (!f.isFile) return ""
+        if (!f.isFile) { knownCookie = ""; return "" }
         var c = String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8).trim()
-        if (c.isEmpty()) return ""
+        if (c.isEmpty()) { knownCookie = ""; return "" }
         if (!c.contains("=")) c = "MUSIC_U=$c"
+        knownCookie = c
         return c
     }
 
-    val loggedIn: Boolean get() = cookie().contains("MUSIC_U=")
+    val loggedIn: Boolean get() = knownCookie.contains("MUSIC_U=")
+    fun refreshCredentials() { cookie() }
 
     /** 扫码登录成功后保存 Cookie，并清掉缓存的账号信息 */
     fun saveCookie(cookie: String) {
@@ -60,6 +63,7 @@ object NeteaseApi {
             val f = cookieFile
             f.parentFile.mkdirs()
             f.writeText(cookie, StandardCharsets.UTF_8)
+            knownCookie = cookie
         } catch (e: Exception) {
             DangoLogger.warn("Save NetEase cookie failed: {}", e.toString())
         }

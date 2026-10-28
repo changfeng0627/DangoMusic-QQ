@@ -192,8 +192,7 @@ internal class Sidebar(private val screen: MusicScreen) {
             if (ui.hover(outB)) ui.card(outB, Theme.CARD_HOVER, 6f)
             ui.text(I18n.text("Log out"), outB.x + 5f, outB.y + 6f, 10f, Theme.TEXT_TERTIARY, Theme.FONT_MEDIUM)
             ui.hits += outB to {
-                Library.service.logout()
-                Library.refreshAll()
+                Library.logout()
             }
         } else {
             if (ui.hover(ub)) ui.card(ub, Theme.CARD_HOVER, 10f)

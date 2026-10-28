@@ -75,4 +75,4 @@ object MusicServices {
 }
 
 /** Safe user-facing failure key; never contains a URL, cookie, OAuth code or ticket. */
-class MusicException(val userMessage: String) : Exception(userMessage)
+class MusicException(val userMessage: String, val diagnosticCode: String? = null) : Exception(userMessage)

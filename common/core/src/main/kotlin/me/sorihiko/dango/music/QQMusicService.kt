@@ -18,17 +18,20 @@ interface QQProvider {
 }
 
 class QQCredentials(private val file: () -> File) {
-    @Synchronized fun read(): JsonObject = try {
+    @Volatile private var cached = JsonObject()
+    /** Render threads must only inspect this immutable snapshot, never acquire the file lock. */
+    val present: Boolean get() = valid(cached)
+    @Synchronized fun read(): JsonObject { cached = try {
         val f = file()
         if (!f.isFile || f.length() > 65536) JsonObject() else QQProtocol.parse(f.readText(Charsets.UTF_8))
-    } catch (_: Exception) { JsonObject() }
+    } catch (_: Exception) { JsonObject() }; return cached }
     fun valid(o: JsonObject) = (o.str("musicid", "str_musicid").toLongOrNull() ?: 0L) > 0L && o.str("musickey").isNotBlank()
-    @Synchronized fun save(value: JsonObject) {
+    @Synchronized fun save(value: JsonObject, stillCurrent: () -> Boolean = { true }) {
         if (!valid(value)) throw MusicException("QQ Music login did not return complete credentials")
-        write(value)
+        write(value, stillCurrent)
     }
     @Synchronized fun clear() = write(JsonObject())
-    private fun write(value: JsonObject) {
+    private fun write(value: JsonObject, stillCurrent: () -> Boolean = { true }) {
         val f = file(); f.parentFile.mkdirs()
         val temp = File(f.parentFile, f.name + ".tmp")
         try {
@@ -36,10 +39,12 @@ class QQCredentials(private val file: () -> File) {
             // Best-effort owner-only permissions on Unix; Windows inherits the user's config ACL.
             temp.setReadable(false, false); temp.setWritable(false, false)
             temp.setReadable(true, true); temp.setWritable(true, true)
+            if (!stillCurrent()) return
             try { Files.move(temp.toPath(), f.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING) }
             catch (_: java.nio.file.AtomicMoveNotSupportedException) {
                 Files.move(temp.toPath(), f.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
+            cached = value
         } finally { temp.delete() }
     }
 }
@@ -74,13 +79,13 @@ class QQWebProvider(
         val headers = mutableMapOf("Content-Type" to "application/json", "Referer" to "https://y.qq.com/")
         if (key.isNotEmpty()) headers["Cookie"] = "uin=$uin; qqmusic_uin=$uin; qqmusic_key=$key; qm_keyst=$key; tmeLoginType=$type"
         val response = transport.request("https://u.y.qq.com/cgi-bin/musicu.fcg", body.toString(), headers)
-        if (response.code !in 200..299) throw MusicException("QQ Music service is unavailable")
+        if (response.code !in 200..299) throw MusicException("QQ Music service is unavailable", "HTTP_${response.code}")
         val root = QQProtocol.parse(response.text())
         val req = root.obj("req_0") ?: throw MusicException("Invalid QQ Music response")
         if (req.str("code") in listOf("1000", "104401", "104400"))
-            throw MusicException("QQ Music session expired; please sign in again")
+            throw MusicException("QQ Music session expired; please sign in again", "QQ_${req.str("code").toIntOrNull() ?: -1}")
         if (root.str("code").ifEmpty { "0" } != "0" || req.str("code").ifEmpty { "0" } != "0")
-            throw MusicException("QQ Music request rejected; sign in again or retry later")
+            throw MusicException("QQ Music request rejected; sign in again or retry later", "QQ_${req.str("code").toIntOrNull() ?: -1}")
         return req.obj("data") ?: throw MusicException("Invalid QQ Music response")
     }
 
@@ -102,10 +107,10 @@ object QQMusicService : MusicService {
     override val platform = MusicPlatform.QQ
     internal val credentials = QQCredentials { DangoMusic.instance.clientDir.resolve("qqmusic_credentials.json").toFile() }
     @Volatile var provider: QQProvider = QQWebProvider({ credentials.read() })
-    override val loggedIn get() = credentials.valid(credentials.read())
+    override val loggedIn get() = credentials.present
     @Volatile override var profile: UserProfile? = null; private set
     override val login: MusicLogin get() = QQMusicLogin
-    override fun initialize() { /* No global cookie jar and no credential file outside clientDir. */ }
+    override fun initialize() { credentials.read() }
 
     override fun search(keyword: String, limit: Int): List<MusicTrack> {
         val params = json("query" to keyword, "search_type" to 0, "page_num" to limit.coerceIn(1, 100),
@@ -119,11 +124,13 @@ object QQMusicService : MusicService {
     }
     override fun getPlayUrl(track: MusicTrack): AudioSource? {
         require(track.platform == platform)
+        // Older room data carries only the song MID. Resolve the separate file MID before requesting vkey.
+        val resolved = if (track.mediaId == track.id) getTrack(track.id) ?: track else track
         // Only ordinary MP3 variants. An empty purl is a permission decision, never a reason to bypass it.
         val data = provider.rpc("music.vkey.GetVkey", "UrlGetVkey", json(
             "uin" to credentials.read().str("musicid", "str_musicid").ifEmpty { "0" },
             "guid" to (UUID.randomUUID().leastSignificantBits and Long.MAX_VALUE).toString(),
-            "filename" to listOf("M500${track.mediaId}.mp3", "M800${track.mediaId}.mp3"),
+            "filename" to listOf("M500${resolved.mediaId}.mp3", "M800${resolved.mediaId}.mp3"),
             "songmid" to listOf(track.id, track.id), "songtype" to listOf(0, 0), "ctx" to 0))
         return QQProtocol.playUrl(data)
     }

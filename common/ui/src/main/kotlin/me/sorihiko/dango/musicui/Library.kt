@@ -41,6 +41,15 @@ internal object Library {
     val stale: Boolean get() = System.currentTimeMillis() - lastLoadAt > 5 * 60_000L
     fun tracks(playlist: MusicPlaylist): List<MusicTrack>? = tracksCache[playlist.key]
 
+    fun logout() {
+        val provider = service
+        provider.login.cancel()
+        if (platform == MusicPlatform.QQ) QQPhoneLogin.cancel()
+        worker.execute {
+            try { provider.logout() } finally { if (provider.platform == platform) refreshAll() }
+        }
+    }
+
     fun switchPlatform(next: MusicPlatform) {
         if (next == platform) return
         service.login.cancel()

@@ -17,7 +17,7 @@ object QQPhoneLogin {
     val cooldownSeconds get() = ((nextSendAt - System.currentTimeMillis() + 999) / 1000).coerceAtLeast(0).toInt()
     val busy get() = state == PhoneState.SENDING || state == PhoneState.VERIFYING
 
-    fun cancel() = synchronized(lock) {
+    fun cancel() {
         session.incrementAndGet(); state = PhoneState.IDLE; message = ""; challengeUrl = null
     }
     internal fun validPhone(phone: String, area: String) = phone.matches(Regex("[0-9]{6,15}")) && area.matches(Regex("[0-9]{1,4}"))
@@ -69,13 +69,11 @@ object QQPhoneLogin {
                 val reply = QQMusicService.provider.phoneRpc("Login",
                     json("phoneNo" to phone, "areaCode" to area, "code" to code, "loginMode" to 1))
                 val data = reply.obj("data")
-                synchronized(lock) {
-                    if (token == session.get()) {
-                        if (reply.str("code") == "0" && data != null && QQMusicService.credentials.valid(data)) {
-                            QQMusicService.credentials.save(data)
-                            state = PhoneState.SUCCESS; message = "Logged in"
-                        } else { state = PhoneState.ERROR; message = "Verification failed or code expired; try again or use QR login" }
-                    }
+                if (token == session.get()) {
+                    if (reply.str("code") == "0" && data != null && QQMusicService.credentials.valid(data)) {
+                        QQMusicService.credentials.save(data) { token == session.get() }
+                        synchronized(lock) { if (token == session.get()) { state = PhoneState.SUCCESS; message = "Logged in" } }
+                    } else fail(token, "Verification failed or code expired; try again or use QR login")
                 }
             } catch (_: Exception) { fail(token, "Verification failed or code expired; try again or use QR login") }
         }, "Dango-QQSmsVerify").apply { isDaemon = true; start() }

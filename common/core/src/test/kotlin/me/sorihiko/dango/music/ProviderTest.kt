@@ -79,6 +79,10 @@ class ProviderTest {
         val track = PartyProtocol.track(QQProtocol.parse("""{"platform":"qq","trackId":"003alphaMID"}"""))!!
         assertEquals("qq:003alphaMID", track.key)
     }
+    @Test fun qqPartyKeepsSeparateMediaMid() {
+        val track = PartyProtocol.track(QQProtocol.parse("""{"platform":"qq","trackId":"songMID","mediaId":"fileMID"}"""))!!
+        assertEquals("fileMID", track.mediaId)
+    }
     @Test fun unknownOrMalformedPartyDataIsSafe() {
         for (raw in listOf("{}", """{"platform":"unknown","trackId":"1"}""", """{"trackId":{}}""", """{"trackId":"abc"}"""))
             assertNull(PartyProtocol.track(QQProtocol.parse(raw)))
@@ -154,5 +158,130 @@ class ProviderTest {
     @Test fun oauthCodeParsingDoesNotRequireTrailingAmpersand() {
         assertEquals("fixture", QQMusicLogin.query("https://y.qq.com/portal/wx_redirect.html?code=fixture", "code"))
         assertEquals("a+b", QQMusicLogin.query("https://y.qq.com/?code=a%2Bb&state=state", "code"))
+    }
+    @Test fun renderCredentialPresenceDoesNotReadOrLockTheFile() {
+        val dir = Files.createTempDirectory("dango-render-credential-test").toFile()
+        var accesses = 0
+        try {
+            val store = QQCredentials { accesses++; dir.resolve("qqmusic_credentials.json") }
+            repeat(100) { assertFalse(store.present) }
+            assertEquals(0, accesses)
+            store.save(json("musicid" to 123, "musickey" to "fixture-only"))
+            val afterSave = accesses
+            repeat(100) { assertTrue(store.present) }
+            assertEquals(afterSave, accesses)
+        } finally { dir.deleteRecursively() }
+    }
+    @Test fun cancelledCredentialWriteDoesNotReplaceTheAccount() {
+        val dir = Files.createTempDirectory("dango-cancelled-credential-test").toFile()
+        try {
+            val store = QQCredentials { dir.resolve("qqmusic_credentials.json") }
+            store.save(json("musicid" to 123, "musickey" to "old-fixture"))
+            store.save(json("musicid" to 456, "musickey" to "cancelled-fixture")) { false }
+            assertEquals("123", store.read().str("musicid"))
+        } finally { dir.deleteRecursively() }
+    }
+    @Test fun qqCallbackArgumentsHandleJavascriptEscapes() {
+        val args = QQMusicLogin.callbackArguments("ptuiCB('0','0','https://qq.com/?uin=123\\x26ptsigx=fixture','0','OK','name\\'s');")
+        assertEquals("0", args[0])
+        assertEquals("https://qq.com/?uin=123&ptsigx=fixture", args[2])
+        assertEquals("name's", args[5])
+    }
+    @Test fun confirmationPerformsCompleteCookieAndOauthExchange() {
+        var requests = 0
+        val stages = mutableListOf<String>()
+        val transport = object : MusicTransport {
+            override fun request(url: String, body: String?, headers: Map<String, String>): HttpReply {
+                requests++
+                if (requests == 1) {
+                    assertTrue(url.startsWith("https://ssl.ptlogin2.graph.qq.com/check_sig?"))
+                    assertNull(headers["Cookie"])
+                    return HttpReply(302, ByteArray(0), listOf("p_skey=fixture-skey; Expires=Wed, 01 Jan 2030 00:00:00 GMT, p_uin=o123; Path=/"), "https://graph.qq.com/oauth2.0/login_jump")
+                }
+                assertEquals("https://graph.qq.com/oauth2.0/authorize", url)
+                assertEquals("https://graph.qq.com", headers["Origin"])
+                assertEquals("https://graph.qq.com/", headers["Referer"])
+                assertTrue(headers["Cookie"]!!.contains("p_skey=fixture-skey"))
+                val nonce = QQMusicLogin.query("https://qq.com/?$body", "state")!!
+                return HttpReply(302, ByteArray(0), emptyList(), "https://y.qq.com/portal/wx_redirect.html?code=fixture-code&state=$nonce")
+            }
+        }
+        val auth = QQAuthorization(transport, { code ->
+            assertEquals("fixture-code", code)
+            json("musicid" to 123, "musickey" to "fixture-only")
+        }, { stages += it }).complete("https://qq.com/?uin=123&ptsigx=fixture-ticket")
+        assertEquals("123", auth.str("musicid")); assertEquals("2", auth.str("loginType"))
+        assertEquals(2, requests); assertEquals("QQ Music credential exchange", stages.last())
+    }
+    @Test fun qrSessionRetainsCookiesAcrossConfirmationAndTicketRedirect() {
+        var requests = 0
+        val delegate = object : MusicTransport {
+            override fun request(url: String, body: String?, headers: Map<String, String>): HttpReply {
+                when (requests++) {
+                    0 -> return HttpReply(200, ByteArray(0), listOf("pt_login_sig=poll-fixture; Domain=.qq.com; Path=/; Secure"), null)
+                    1 -> {
+                        assertTrue(headers["Cookie"]!!.contains("pt_login_sig=poll-fixture"))
+                        return HttpReply(302, ByteArray(0), emptyList(), "https://graph.qq.com/oauth2.0/login_jump")
+                    }
+                    2 -> {
+                        assertEquals("https://graph.qq.com/oauth2.0/login_jump", url)
+                        assertTrue(headers["Cookie"]!!.contains("pt_login_sig=poll-fixture"))
+                        return HttpReply(200, ByteArray(0), listOf("p_skey=redirect-fixture; Domain=graph.qq.com; Path=/; Secure, p_uin=o123; Domain=graph.qq.com; Path=/; Secure"), null)
+                    }
+                    else -> {
+                        assertEquals("https://graph.qq.com/oauth2.0/authorize", url)
+                        assertTrue(headers["Cookie"]!!.contains("p_skey=redirect-fixture"))
+                        val state = QQMusicLogin.query("https://qq.com/?$body", "state")!!
+                        return HttpReply(302, ByteArray(0), emptyList(), "https://y.qq.com/?code=fixture&state=$state")
+                    }
+                }
+            }
+        }
+        val transport = MusicSessionTransport(delegate)
+        transport.request("https://ssl.ptlogin2.qq.com/ptqrlogin")
+        val auth = QQAuthorization(transport, { json("musicid" to 123, "musickey" to "fixture") })
+            .complete("https://qq.com/?uin=123&ptsigx=fixture")
+        assertEquals("123", auth.str("musicid"))
+        assertEquals(4, requests)
+    }
+    @Test fun loginCookieJarHonorsDomainPathSecureAndAttemptBoundaries() {
+        val delegate = object : MusicTransport {
+            override fun request(url: String, body: String?, headers: Map<String, String>) =
+                HttpReply(200, ByteArray(0), listOf("ticket=fixture; Domain=graph.qq.com; Path=/oauth2.0/; Secure"), null)
+        }
+        val transport = MusicSessionTransport(delegate)
+        transport.request("https://graph.qq.com/oauth2.0/login_jump")
+        assertEquals("fixture", transport.cookiesFor("https://graph.qq.com/oauth2.0/authorize")["ticket"])
+        for (url in listOf("https://graph.qq.com/other", "https://evil.test/oauth2.0/", "https://y.qq.com/oauth2.0/", "http://graph.qq.com/oauth2.0/"))
+            assertTrue(transport.cookiesFor(url).isEmpty())
+        assertTrue(MusicSessionTransport(delegate).cookiesFor("https://graph.qq.com/oauth2.0/").isEmpty())
+    }
+    @Test fun ticketRedirectRejectsAnUnrelatedHostBeforeSendingCookies() {
+        var requests = 0
+        val transport = object : MusicTransport {
+            override fun request(url: String, body: String?, headers: Map<String, String>): HttpReply {
+                requests++
+                return HttpReply(302, ByteArray(0), emptyList(), "https://evil.test/ticket")
+            }
+        }
+        try {
+            QQAuthorization(transport, { fail("unexpected exchange"); JsonObject() })
+                .complete("https://qq.com/?uin=123&ptsigx=fixture")
+            fail("unsafe redirect accepted")
+        } catch (e: MusicException) { assertEquals("TICKET_REDIRECT_HOST", e.diagnosticCode) }
+        assertEquals(1, requests)
+    }
+    @Test fun missingTicketHasSafeUsefulDiagnosticAndDoesNotExchangeCode() {
+        val transport = object : MusicTransport {
+            override fun request(url: String, body: String?, headers: Map<String, String>) = HttpReply(302, ByteArray(0), emptyList(), null)
+        }
+        try {
+            QQAuthorization(transport, { fail("exchange called without ticket"); JsonObject() })
+                .complete("https://qq.com/?uin=123&ptsigx=fixture-ticket")
+            fail("missing ticket accepted")
+        } catch (e: MusicException) {
+            assertEquals("MISSING_P_SKEY", e.diagnosticCode)
+            assertFalse(e.message!!.contains("fixture-ticket"))
+        }
     }
 }

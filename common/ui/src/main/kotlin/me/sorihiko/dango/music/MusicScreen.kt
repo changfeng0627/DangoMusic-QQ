@@ -16,6 +16,7 @@ import me.sorihiko.dango.musicui.SettingsPage
 import me.sorihiko.dango.musicui.Sidebar
 import me.sorihiko.dango.musicui.TracksPage
 import me.sorihiko.dango.musicui.Ui
+import me.sorihiko.dango.musicui.UiFrameStats
 import me.sorihiko.dango.platform.Keys
 import me.sorihiko.dango.ui.LayoutBounds
 import me.sorihiko.dango.ui.ShapeStyle
@@ -60,11 +61,17 @@ class MusicScreen(
     private var lastNanos = 0L
     /** 换页（含换歌单 / 设置换标签 / 新搜索 / 列表↔封面墙）就重新播入场动画 */
     private var pageKey = ""
+    private var backdropAt = 0L
+    private var backdropWidth = 0
+    private var backdropHeight = 0
+    private val frameStats = UiFrameStats()
 
     /** 界面打开时调用 */
     fun opened() {
         if (closingAt != 0L) return // 关闭期间的窗口尺寸变化不重新播放入场。
         closed = false
+        backdropAt = 0L
+        frameStats.reset()
         openKeyHeld = platform.isKeyDown(module.openKey.value)
         if (ScreenState.context == null) ScreenState.context = DangoClient.gfx.newCanvas()
         openedAt = System.currentTimeMillis()
@@ -186,7 +193,18 @@ class MusicScreen(
         ui.mx = (platform.mouseX / scale).toInt()
         ui.my = (platform.mouseY / scale).toInt()
         val ctx = ui.ctx
-        ctx.begin(true, ui.mx, ui.my)
+        val renderStart = System.nanoTime()
+        // Keep input, text and controls at the game's full frame rate. Only the expensive
+        // QQ background copy + 13 blur passes reuse their previous textures for up to 33ms.
+        val capture = Library.platform != MusicPlatform.QQ || backdropAt == 0L ||
+            renderStart - backdropAt >= 33_333_333L ||
+            backdropWidth != platform.windowWidth || backdropHeight != platform.windowHeight
+        ctx.begin(capture, ui.mx, ui.my)
+        if (capture) {
+            backdropAt = renderStart
+            backdropWidth = platform.windowWidth; backdropHeight = platform.windowHeight
+        }
+        val captureEnd = System.nanoTime()
         try {
             val now = System.nanoTime()
             ui.frameDt = if (lastNanos == 0L) 16f else ((now - lastNanos) / 1e6f).coerceAtMost(50f)
@@ -221,6 +239,8 @@ class MusicScreen(
             }
         } finally {
             ctx.end()
+            frameStats.record("${Library.platform.platformId}/${ScreenState.page}/${if (login.visible) "login" else "page"}",
+                renderStart, captureEnd, System.nanoTime())
         }
     }
 
@@ -359,6 +379,9 @@ class MusicScreen(
             return
         }
         if (login.visible) {
+            if (keyCode != Keys.NONE && keyCode == module.openKey.value) {
+                login.close(); module.consumeOpenKey(); close(); return
+            }
             login.keyTyped(typedChar, keyCode)
             return
         }

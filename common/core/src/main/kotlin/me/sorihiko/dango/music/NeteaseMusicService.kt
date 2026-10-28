@@ -12,7 +12,7 @@ object NeteaseMusicService : MusicService {
         UserProfile(platform, it.toString(), NeteaseApi.nickname, NeteaseApi.avatarUrl)
     }
 
-    override fun initialize() = NeteaseApi.ensureCookieFile()
+    override fun initialize() { NeteaseApi.ensureCookieFile(); NeteaseApi.refreshCredentials() }
     override fun search(keyword: String, limit: Int) = NeteaseApi.search(keyword, limit).map { it.unified() }
     override fun getTrack(trackId: String) = trackId.toLongOrNull()?.let { NeteaseApi.track(it)?.unified() }
     override fun getPlayUrl(track: MusicTrack) = track.id.toLongOrNull()?.let { NeteaseApi.songUrl(it) }

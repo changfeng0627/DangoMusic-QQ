@@ -46,5 +46,13 @@
   "Too many requests; please try later": "Too many requests; please try later",
   "QQ Music phone login is unavailable; use QR login": "QQ Music phone login is unavailable; use QR login",
   "Unable to send verification code; try QR login": "Unable to send verification code; try QR login",
-  "Verification failed or code expired; try again or use QR login": "Verification failed or code expired; try again or use QR login"
+  "Verification failed or code expired; try again or use QR login": "Verification failed or code expired; try again or use QR login",
+  "QR login failed; details below": "QR login failed; details below",
+  "QQ login failed at %s (%s)": "QQ login failed at %s (%s)",
+  "QR code request": "QR code request",
+  "Waiting for QR confirmation": "Waiting for QR confirmation",
+  "QQ ticket validation": "QQ ticket validation",
+  "QQ OAuth authorization": "QQ OAuth authorization",
+  "QQ Music credential exchange": "QQ Music credential exchange",
+  "Saving QQ Music account": "Saving QQ Music account"
 }

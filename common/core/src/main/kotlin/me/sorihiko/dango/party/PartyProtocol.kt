@@ -14,6 +14,7 @@ object PartyProtocol {
         if (platform == MusicPlatform.NETEASE && id.toLongOrNull() == null) return null
         MusicTrack(platform, id, o.get("name")?.asString ?: "",
             (o.get("artists")?.asString ?: "").split(" / ").filter { it.isNotEmpty() },
-            o.get("duration")?.asLong ?: 0L, o.get("cover")?.asString ?: "")
+            o.get("duration")?.asLong ?: 0L, o.get("cover")?.asString ?: "",
+            o.get("mediaId")?.takeIf { it.isJsonPrimitive }?.asString?.takeIf { it.isNotBlank() } ?: id)
     } catch (_: Exception) { null } }
 }

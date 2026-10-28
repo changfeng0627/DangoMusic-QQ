@@ -33,7 +33,7 @@ object ListenParty {
     class Member(val uid: String, val name: String, val lastSeen: Long)
 
     private class RemoteState(
-        val trackId: String, val platform: MusicPlatform, val name: String, val artists: List<String>, val cover: String, val duration: Long,
+        val trackId: String, val platform: MusicPlatform, val mediaId: String, val name: String, val artists: List<String>, val cover: String, val duration: Long,
         val pos: Long, val playing: Boolean, val at: Long,
     )
 
@@ -278,6 +278,7 @@ object ListenParty {
             RemoteState(
                 trackId = PartyProtocol.track(st)?.id ?: throw IllegalArgumentException(),
                 platform = PartyProtocol.track(st)?.platform ?: throw IllegalArgumentException(),
+                mediaId = PartyProtocol.track(st)?.mediaId ?: throw IllegalArgumentException(),
                 name = st.get("name")?.asString ?: "",
                 artists = (st.get("artists")?.asString ?: "").split(" / ").filter { it.isNotEmpty() },
                 cover = st.get("cover")?.asString ?: "",
@@ -326,6 +327,7 @@ object ListenParty {
             addProperty("protocolVersion", 2)
             addProperty("platform", t.platform.platformId)
             addProperty("trackId", t.id)
+            addProperty("mediaId", t.mediaId)
             addProperty("name", t.name)
             addProperty("artists", t.artists.joinToString(" / "))
             addProperty("cover", t.coverUrl)
@@ -349,7 +351,7 @@ object ListenParty {
         if (cur?.key != remoteKey) {
             if (requestedId != remoteKey) {
                 requestedId = remoteKey
-                val track = MusicTrack(s.platform, s.trackId, s.name, s.artists, s.duration, s.cover)
+                val track = MusicTrack(s.platform, s.trackId, s.name, s.artists, s.duration, s.cover, s.mediaId)
                 MusicPlayer.playTrackAt(track, { expectedPos(s) }, !s.playing)
                 lastCorrection = System.currentTimeMillis()
             }

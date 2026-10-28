@@ -10,6 +10,7 @@ import me.sorihiko.dango.music.MusicPlatform
 import me.sorihiko.dango.music.LoginState
 import me.sorihiko.dango.music.LoginChannel
 import me.sorihiko.dango.music.QQPhoneLogin
+import me.sorihiko.dango.music.QQMusicLogin
 import me.sorihiko.dango.music.PhoneState
 import me.sorihiko.dango.platform.Keys
 import me.sorihiko.dango.ui.LayoutBounds
@@ -117,11 +118,15 @@ internal class LoginDialog(private val screen: MusicScreen) {
             ctx.drawImage(qrBox, loc!!)
             ctx.popOpacity()
         } else {
-            val t = if (state == LoginState.ERROR) I18n.text("获取二维码失败") else I18n.text("正在获取二维码…")
+            val t = if (state == LoginState.ERROR) I18n.text(if (loginPlatform == MusicPlatform.QQ) "QR login failed; details below" else "获取二维码失败") else I18n.text("正在获取二维码…")
             ui.text(t, qrBox.x + (qs - ui.width(t, 13f)) / 2f, qrBox.y + qs / 2f - 6f, 13f, Color(0.33f, 0.33f, 0.33f, 1f))
         }
 
-        val msg = when (state) {
+        val msg = if (loginPlatform == MusicPlatform.QQ && state == LoginState.ERROR) {
+            I18n.format("QQ login failed at %s (%s)", I18n.text(QQMusicLogin.failureStage), QQMusicLogin.failureCode)
+        } else if (loginPlatform == MusicPlatform.QQ && QQMusicLogin.progress !in listOf("QR code request", "Waiting for QR confirmation") && state != LoginState.EXPIRED) {
+            I18n.text(QQMusicLogin.progress)
+        } else when (state) {
             LoginState.WAITING -> I18n.text(if (loginPlatform == MusicPlatform.NETEASE) "打开手机网易云音乐 App 扫码" else if (channel == LoginChannel.QQ) "Scan with the QQ app" else "Scan with WeChat")
             LoginState.SCANNED -> I18n.text("已扫码，请在手机上确认登录")
             LoginState.EXPIRED -> I18n.text("二维码已过期")
@@ -133,7 +138,9 @@ internal class LoginDialog(private val screen: MusicScreen) {
             LoginState.ERROR, LoginState.EXPIRED -> RED
             else -> Theme.TEXT_PRIMARY
         }
-        ui.text(msg, box.x + (w - ui.width(msg, 14f)) / 2f, qrBox.bottom + 24f, 14f, msgColor)
+        ui.wrap2(msg, w - 32f, 12f, Theme.FONT_MEDIUM).forEachIndexed { i, line ->
+            ui.text(line, box.x + (w - ui.width(line, 12f)) / 2f, qrBox.bottom + 18f + i * 14f, 12f, msgColor)
+        }
 
         if (state == LoginState.EXPIRED || state == LoginState.ERROR) {
             val label = I18n.text("Refresh QR")
