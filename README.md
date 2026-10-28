@@ -4,6 +4,10 @@
 
 本分支新增共享层 QQ 音乐支持：在侧栏切换网易云 / QQ 音乐，QQ 音乐提供 QQ、微信扫码及手机验证码登录入口。功能范围、账号验收限制及构建说明见 [QQ 音乐说明](docs/qq-music.md)。全部原有 Minecraft 构建目标继续保留。
 
+此仓库是 [Sorihiko/DangoMusic](https://github.com/Sorihiko/DangoMusic) 的 QQ 音乐适配分支，保留原项目 GPL-3.0 许可证与提交历史。[QQ 音乐测试版下载](https://github.com/changfeng0627/DangoMusic-QQ/releases/tag/v1.5.0-qq-hotfix5) 包含全部 11 个构建目标和 SHA256 校验和。
+
+当前为实验版本：已实测 QQ 账号登录、授权 MP3 播放、歌单首页和 LRC / 3D 逐行歌词；微信、短信和私人歌单的全部场景尚未完成真实账号验收。图形优化不额外限制游戏帧率，间歇卡顿仍需在各自环境复核。
+
 在 Minecraft 里听网易云音乐的 mod（1.8.9 Forge / 1.20.1 Fabric · Forge / 1.21.1 · 1.21.11 · 26.2 · 26.3 Fabric · NeoForge）：液态玻璃风格的播放器、漂浮在世界里的 3D 歌词、Song card、灵动岛，还能和朋友一起听歌。
 
 *A Minecraft mod (1.8.9 Forge / 1.20.1 Fabric & Forge / 1.21.1, 1.21.11, 26.2 & 26.3 Fabric & NeoForge) that brings a NetEase Cloud Music player into Minecraft — liquid-glass UI, 3D in-world lyrics, a song card HUD, a Dynamic Island and Listen Together.*
@@ -38,7 +42,7 @@
 
 ## 安装
 
-按游戏版本选 jar（在 [Releases](https://github.com/Sorihiko/DangoMusic/releases) 下载）：
+按游戏版本选 jar（QQ 适配版在 [Releases](https://github.com/changfeng0627/DangoMusic-QQ/releases) 下载）：
 
 | 版本 | 文件 | 需要 |
 |---|---|---|
